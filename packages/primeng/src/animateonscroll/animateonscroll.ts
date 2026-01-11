@@ -1,7 +1,5 @@
 import { isPlatformBrowser } from '@angular/common';
-import { booleanAttribute, Directive, Input, NgModule, numberAttribute } from '@angular/core';
-import { addClass, removeClass } from '@primeuix/utils';
-import { BaseComponent } from 'primeng/basecomponent';
+import { AfterViewInit, booleanAttribute, Directive, ElementRef, inject, Input, NgModule, numberAttribute, OnDestroy, OnInit, PLATFORM_ID, Renderer2 } from '@angular/core';
 
 interface AnimateOnScrollOptions {
     root?: HTMLElement | null;
@@ -20,7 +18,12 @@ interface AnimateOnScrollOptions {
         '[class.p-animateonscroll]': 'true'
     }
 })
-export class AnimateOnScroll extends BaseComponent {
+// 'extends BaseComponent' removido e hooks implementados
+export class AnimateOnScroll implements OnInit, AfterViewInit, OnDestroy {
+    el = inject(ElementRef);
+    renderer = inject(Renderer2);
+    platformId = inject(PLATFORM_ID);
+
     /**
      * Selector to define the CSS class for enter animation.
      * @group Props
@@ -62,13 +65,14 @@ export class AnimateOnScroll extends BaseComponent {
 
     animationEndListener: VoidFunction | null | undefined;
 
-    onInit() {
+    ngOnInit() {
         if (isPlatformBrowser(this.platformId)) {
+            // Renderer2 em vez de style.opacity direto
             this.renderer.setStyle(this.el.nativeElement, 'opacity', this.enterClass ? '0' : '');
         }
     }
 
-    onAfterViewInit() {
+    ngAfterViewInit() {
         if (isPlatformBrowser(this.platformId)) {
             this.bindIntersectionObserver();
         }
@@ -161,7 +165,7 @@ export class AnimateOnScroll extends BaseComponent {
         this.isObserverActive = false;
     }
 
-    onDestroy() {
+    ngOnDestroy() {
         this.unbindAnimationEvents();
         this.unbindIntersectionObserver();
     }
