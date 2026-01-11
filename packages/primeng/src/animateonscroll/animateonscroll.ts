@@ -1,6 +1,5 @@
 import { isPlatformBrowser } from '@angular/common';
 import { booleanAttribute, Directive, Input, NgModule, numberAttribute } from '@angular/core';
-import { addClass, removeClass } from '@primeuix/utils';
 import { BaseComponent } from 'primeng/basecomponent';
 
 interface AnimateOnScrollOptions {
@@ -102,8 +101,12 @@ export class AnimateOnScroll extends BaseComponent {
         this.resetObserver = new IntersectionObserver(
             ([entry]) => {
                 if (entry.boundingClientRect.top > 0 && !entry.isIntersecting) {
-                    this.el.nativeElement.style.opacity = this.enterClass ? '0' : '';
-                    removeClass(this.el.nativeElement, [this.enterClass, this.leaveClass]);
+                    // Renderer2 em vez de style.opacity direto
+                    this.renderer.setStyle(this.el.nativeElement, 'opacity', this.enterClass ? '0' : '');
+
+                    // Renderer2 para manipular classes CSS
+                    if (this.enterClass) this.renderer.removeClass(this.el.nativeElement, this.enterClass);
+                    if (this.leaveClass) this.renderer.removeClass(this.el.nativeElement, this.leaveClass);
 
                     this.resetObserver.unobserve(this.el.nativeElement);
                 }
@@ -116,9 +119,12 @@ export class AnimateOnScroll extends BaseComponent {
 
     enter() {
         if (this.animationState !== 'enter' && this.enterClass) {
-            this.el.nativeElement.style.opacity = '';
-            removeClass(this.el.nativeElement, this.leaveClass);
-            addClass(this.el.nativeElement, this.enterClass);
+            // Renderer2 em vez de style.opacity direto
+            this.renderer.setStyle(this.el.nativeElement, 'opacity', '');
+
+            // Renderer2 para manipular classes CSS
+            if (this.leaveClass) this.renderer.removeClass(this.el.nativeElement, this.leaveClass);
+            if (this.enterClass) this.renderer.addClass(this.el.nativeElement, this.enterClass);
 
             this.once && this.unbindIntersectionObserver();
 
@@ -129,9 +135,12 @@ export class AnimateOnScroll extends BaseComponent {
 
     leave() {
         if (this.animationState !== 'leave' && this.leaveClass) {
-            this.el.nativeElement.style.opacity = this.enterClass ? '0' : '';
-            removeClass(this.el.nativeElement, this.enterClass);
-            addClass(this.el.nativeElement, this.leaveClass);
+            // Renderer2 em vez de style.opacity direto
+            this.renderer.setStyle(this.el.nativeElement, 'opacity', this.enterClass ? '0' : '');
+
+            // Renderer2 para manipular classes CSS
+            if (this.enterClass) this.renderer.removeClass(this.el.nativeElement, this.enterClass);
+            if (this.leaveClass) this.renderer.addClass(this.el.nativeElement, this.leaveClass);
 
             this.bindAnimationEvents();
             this.animationState = 'leave';
@@ -141,7 +150,10 @@ export class AnimateOnScroll extends BaseComponent {
     bindAnimationEvents() {
         if (!this.animationEndListener) {
             this.animationEndListener = this.renderer.listen(this.el.nativeElement, 'animationend', () => {
-                removeClass(this.el.nativeElement, [this.enterClass, this.leaveClass]);
+                // Renderer2 para manipular classes CSS
+                if (this.enterClass) this.renderer.removeClass(this.el.nativeElement, this.enterClass);
+                if (this.leaveClass) this.renderer.removeClass(this.el.nativeElement, this.leaveClass);
+                
                 !this.once && this.resetObserver.observe(this.el.nativeElement);
                 this.unbindAnimationEvents();
             });
