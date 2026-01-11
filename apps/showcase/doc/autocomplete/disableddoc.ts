@@ -23,11 +23,14 @@ interface AutoCompleteCompleteEvent {
         <app-code [code]="code" selector="autocomplete-disabled-demo"></app-code>`
 })
 export class DisabledDoc {
-    items: any[] | undefined;
+    // refactor 9: items passou a ser uma lista de strings.
+    items: string[] | undefined;
 
-    selectedItem: any;
+    // refactor 10: o item selecionado passa a ser uma string.
+    selectedItem: string | undefined;
 
-    suggestions: any[] | undefined;
+    // refactor 11: as sugestões agora são um array de strings.
+    suggestions: string[] | undefined;
 
     search(event: AutoCompleteCompleteEvent) {
         this.suggestions = [...Array(10).keys()].map((item) => event.query + '-' + item);

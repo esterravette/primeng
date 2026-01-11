@@ -18,7 +18,8 @@ interface InterfaceValue {
 }
 
 interface APIDocEntry {
-    components?: Record<string, any>;
+    //refactor 1: mudança de any para unknown para evitar acessos inseguros.
+    components?: Record<string, unknown>;
     interfaces?: {
         description: string;
         values: InterfaceValue[];
@@ -27,7 +28,8 @@ interface APIDocEntry {
         values: Record<string, { members: Array<{ value: string; description: string }> }>;
     };
     style?: {
-        components?: Record<string, any>;
+        //refactor 2: mudança de any para unknown, seguindo o mesmo padrão da primeira.
+        components?: Record<string, unknown>;
         classes?: {
             values: Array<{ class: string; description: string }>;
         };
@@ -51,6 +53,17 @@ interface TokenOption {
     'CSS Variable': string;
     description: string;
 }
+//refactor 3: substituição de any pela definição explícita das interfaces ComponentTokenEntry e ComponentTokenGroup.
+interface ComponentTokenEntry {
+    token: string;
+    variable: string;
+    description: string;
+}
+interface ComponentTokenGroup {
+    tokens: Record<string, ComponentTokenEntry>;
+}
+
+
 
 export const getPTOptions = (name: string): PTOption[] => {
     const apiDoc = (APIDocs as Record<string, APIDocEntry>)[name.toLowerCase()];
@@ -119,18 +132,22 @@ export const getStyleOptions = (name: string): StyleOption[] => {
 export const getTokenOptions = (name: string): TokenOption[] => {
     const data: TokenOption[] = [];
 
-    if ((ComponentTokens as Record<string, any>)[name.toLowerCase()]) {
-        const tokens = (ComponentTokens as Record<string, any>)[name.toLowerCase()].tokens;
+    //refactor 4: troca de casting any por Record, utilizando as interfaces criadas.
+    const components = ComponentTokens as Record<string, ComponentTokenGroup>;
+    const component = components[name.toLowerCase()];
 
-        for (const [_, value] of Object.entries(tokens) as [string, any][]) {
-            data.push({
-                token: value.token,
-                /*property: value.name.split('.').slice(1).join('.'),*/
-                'CSS Variable': value.variable,
-                description: value.description
-            });
-        }
+    if (!component) {
+        return data;
+    }
+    //refactor 5: remoção do casting any no loop, usando Object.values em um objeto já tipado.
+    for (const value of Object.values(component.tokens)) {
+        data.push({
+            token: value.token,
+            'CSS Variable': value.variable,
+            description: value.description
+        });
     }
 
     return data;
 };
+
