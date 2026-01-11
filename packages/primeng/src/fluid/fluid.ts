@@ -1,9 +1,18 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, inject, InjectionToken, NgModule, ViewEncapsulation } from '@angular/core';
-import { BaseComponent, PARENT_INSTANCE } from 'primeng/basecomponent';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    inject,
+    InjectionToken,
+    input,
+    NgModule,
+    ViewEncapsulation,
+    AfterViewChecked
+} from '@angular/core';
 import { Bind } from 'primeng/bind';
 import { FluidPassThrough } from 'primeng/types/fluid';
 import { FluidStyle } from './style/fluidstyle';
+import { cn, getKeyValue, mergeProps, resolve, toFlatCase } from '@primeuix/utils';
 
 const FLUID_INSTANCE = new InjectionToken<Fluid>('FLUID_INSTANCE');
 
@@ -18,22 +27,62 @@ const FLUID_INSTANCE = new InjectionToken<Fluid>('FLUID_INSTANCE');
     imports: [CommonModule],
     changeDetection: ChangeDetectionStrategy.OnPush,
     encapsulation: ViewEncapsulation.None,
-    providers: [FluidStyle, { provide: FLUID_INSTANCE, useExisting: Fluid }, { provide: PARENT_INSTANCE, useExisting: Fluid }],
+    providers: [FluidStyle, { provide: FLUID_INSTANCE, useExisting: Fluid }],
     host: {
-        '[class]': "cx('root')"
+        '[class]': "hostClasses"
     },
     hostDirectives: [Bind]
 })
-export class Fluid extends BaseComponent<FluidPassThrough> {
+
+export class Fluid implements AfterViewChecked {
+
+    // composição
+    private readonly componentStyle = inject(FluidStyle);
+
     $pcFluid: Fluid | undefined = inject(FLUID_INSTANCE, { optional: true, skipSelf: true }) ?? undefined;
 
     bindDirectiveInstance = inject(Bind, { self: true });
 
-    onAfterViewChecked(): void {
+    // inputs que antes eram herdados de BaseComponent
+    pt = input<FluidPassThrough>();
+    unstyled = input<boolean>(false);
+
+    ngAfterViewChecked(): void {
         this.bindDirectiveInstance.setAttrs(this.ptms(['host', 'root']));
     }
 
     _componentStyle = inject(FluidStyle);
+
+    cx(key: string, params: Record<string, unknown> = {}) {
+        if (this.unstyled()) return undefined;
+        const classes = getKeyValue(this.componentStyle.classes, key, params);
+        return cn(classes);
+    }
+
+    get hostClasses(): string {
+        return this.cx('root') ?? '';
+    }
+
+    ptm(key: string, params: Record<string, unknown> = {}) {
+        const ptConfig = (this.pt() || {}) as Record<string, unknown>;
+        return this.getPTValue(ptConfig, key, params);
+    }
+
+    ptms(keys: string[], params: Record<string, unknown> = {}) {
+        return keys.reduce((acc, arg) => {
+            const merged = mergeProps(acc, this.ptm(arg, params));
+            return (merged || {}) as Record<string, unknown>;
+        }, {} as Record<string, unknown>);
+    }
+
+    private getPTValue(obj: Record<string, unknown>, key: string, params: Record<string, unknown>) {
+        const datasetPrefix = 'data-pc-';
+        const self = resolve(getKeyValue(obj, key), params);
+        const datasets = key !== 'transition' && {
+            [`${datasetPrefix}section`]: toFlatCase(key)
+        };
+        return mergeProps(self, datasets);
+    }
 }
 
 @NgModule({
