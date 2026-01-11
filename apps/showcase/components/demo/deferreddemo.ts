@@ -1,13 +1,59 @@
 import { CommonModule, isPlatformBrowser } from '@angular/common';
-import { Component, ElementRef, EventEmitter, Inject, Input, OnInit, Output, PLATFORM_ID } from '@angular/core';
+import { Component, Directive, ElementRef, EventEmitter, Inject, Input, OnDestroy, OnInit, Output, PLATFORM_ID } from '@angular/core';
+
+@Directive({
+    selector: '[pIntersectionObserver]',
+    standalone: true
+})
+export class IntersectionObserverDirective implements OnInit, OnDestroy {
+    @Input() ioOptions: any;
+    @Output() visible: EventEmitter<void> = new EventEmitter<void>();
+
+    private observer: IntersectionObserver | null = null;
+
+    // tipagem de ElementRef para HTMLElement para maior clareza ao usar IntersectionObserver
+    constructor(private el: ElementRef<HTMLElement>, @Inject(PLATFORM_ID) private platformId: any) {}
+
+    ngOnInit() {
+        // verifica disponibilidade do IntersectionObserver e garante que o elemento existe antes de observar
+        if (isPlatformBrowser(this.platformId) && typeof IntersectionObserver !== 'undefined') {
+            const element = this.el.nativeElement as HTMLElement | null;
+            if (!element) {
+                return;
+            }
+
+            // remove/desobserva e desconecta o observador antes de emitir para evitar retenção de referências
+            this.observer = new IntersectionObserver(([entry]) => {
+                if (entry.isIntersecting) {
+                    this.observer?.unobserve(element);
+                    this.observer?.disconnect();
+                    this.observer = null;
+                    this.visible.emit();
+                }
+            }, this.ioOptions);
+
+            try {
+                this.observer.observe(element);
+            } catch {
+                // ignora falhas no observe em ambientes incompatíveis
+            }
+        }
+    }
+
+    ngOnDestroy() {
+        // desconecta e limpa a referência do observador para evitar retenção de memória
+        this.observer?.disconnect();
+        this.observer = null;
+    }
+}
 
 @Component({
     selector: 'p-deferred-demo',
     standalone: true,
-    imports: [CommonModule],
+    imports: [CommonModule, IntersectionObserverDirective],
     template: `
         @if (!visible) {
-            <div class="card">
+            <div class="card" pIntersectionObserver [ioOptions]="options" (visible)="onVisible()">
                 <div class="deferred-demo-loading"></div>
             </div>
         } @else {
@@ -16,44 +62,28 @@ import { Component, ElementRef, EventEmitter, Inject, Input, OnInit, Output, PLA
     `,
     styleUrl: './deferreddemo.scss'
 })
-export class DeferredDemo implements OnInit {
+
+export class DeferredDemo {
     visible: boolean = false;
 
-    observer = null;
-
-    timeout = null;
+    timeout: any = null;
 
     @Input() options: any;
 
     @Output() load: EventEmitter<boolean> = new EventEmitter<boolean>();
 
-    constructor(
-        public el: ElementRef,
-        @Inject(PLATFORM_ID) private platformId: any
-    ) {}
+    constructor(@Inject(PLATFORM_ID) private platformId: any) {}
 
-    ngOnInit() {
-        if (isPlatformBrowser(this.platformId)) {
-            this.observer = new IntersectionObserver(([entry]) => {
-                clearTimeout(this.timeout);
+    onVisible() {
+        clearTimeout(this.timeout);
 
-                if (entry.isIntersecting) {
-                    this.timeout = setTimeout(() => {
-                        this.visible = true;
-                        this.observer.unobserve(this.el?.nativeElement);
-                        this.load.emit();
-                    }, 350);
-                }
-            }, this.options);
-
-            this.observer.observe(this.el.nativeElement);
-        }
+        this.timeout = setTimeout(() => {
+            this.visible = true;
+            this.load.emit();
+        }, 350);
     }
 
     ngOnDestroy() {
-        if (!this.visible && this.el.nativeElement) {
-            this.observer?.unobserve(this.el.nativeElement);
-        }
         clearTimeout(this.timeout);
     }
 }
