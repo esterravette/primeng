@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
-import { AfterViewChecked, ChangeDetectionStrategy, Component, inject, InjectionToken, Input, NgModule, ViewEncapsulation } from '@angular/core';
+import { AfterViewChecked, ChangeDetectionStrategy, Component, inject, InjectionToken, Input, input, NgModule, ViewEncapsulation } from '@angular/core';
+import { cn, getKeyValue, mergeProps, resolve, toFlatCase } from '@primeuix/utils';
 import { SharedModule } from 'primeng/api';
-import { BaseComponent, PARENT_INSTANCE } from 'primeng/basecomponent';
 import { Bind, BindModule } from 'primeng/bind';
 import { FloatLabelPassThrough } from 'primeng/types/floatlabel';
 import { FloatLabelStyle } from './style/floatlabelstyle';
@@ -19,20 +19,26 @@ const FLOATLABEL_INSTANCE = new InjectionToken<FloatLabel>('FLOATLABEL_INSTANCE'
     template: ` <ng-content></ng-content> `,
     changeDetection: ChangeDetectionStrategy.OnPush,
     encapsulation: ViewEncapsulation.None,
-    providers: [FloatLabelStyle, { provide: FLOATLABEL_INSTANCE, useExisting: FloatLabel }, { provide: PARENT_INSTANCE, useExisting: FloatLabel }],
+    providers: [FloatLabelStyle, { provide: FLOATLABEL_INSTANCE, useExisting: FloatLabel }],
     host: {
-        '[class]': "cx('root')"
+        // cx('root') substituído por getter local hostClasses
+        '[class]': 'hostClasses'
     },
     hostDirectives: [Bind]
 })
-export class FloatLabel extends BaseComponent<FloatLabelPassThrough> implements AfterViewChecked {
-    _componentStyle = inject(FloatLabelStyle);
+export class FloatLabel implements AfterViewChecked {
+    // composição
+    private readonly componentStyle = inject(FloatLabelStyle);
 
     $pcFloatLabel: FloatLabel | undefined = inject(FLOATLABEL_INSTANCE, { optional: true, skipSelf: true }) ?? undefined;
 
     bindDirectiveInstance = inject(Bind, { self: true });
 
-    onAfterViewChecked(): void {
+    // inputs que antes eram herdados de BaseComponent
+    pt = input<FloatLabelPassThrough>();
+    unstyled = input<boolean>(false);
+
+    ngAfterViewChecked(): void {
         this.bindDirectiveInstance.setAttrs(this.ptms(['host', 'root']));
     }
 
@@ -41,10 +47,47 @@ export class FloatLabel extends BaseComponent<FloatLabelPassThrough> implements 
      * @group Props
      */
     @Input() variant: 'in' | 'over' | 'on' = 'over';
+
+    _componentStyle = inject(FloatLabelStyle);
+
+    cx(key: string, params: Record<string, unknown> = {}) {
+        if (this.unstyled()) return undefined;
+        const classes = getKeyValue(this.componentStyle.classes, key, params);
+        return cn(classes);
+    }
+
+    get hostClasses(): string {
+        return this.cx('root') ?? '';
+    }
+
+    ptm(key: string, params: Record<string, unknown> = {}) {
+        const ptConfig = (this.pt() || {}) as Record<string, unknown>;
+        return this.getPTValue(ptConfig, key, params);
+    }
+
+    ptms(keys: string[], params: Record<string, unknown> = {}) {
+        return keys.reduce(
+            (acc, arg) => {
+                const merged = mergeProps(acc, this.ptm(arg, params));
+                return (merged || {}) as Record<string, unknown>;
+            },
+            {} as Record<string, unknown>
+        );
+    }
+
+    private getPTValue(obj: Record<string, unknown>, key: string, params: Record<string, unknown>) {
+        const datasetPrefix = 'data-pc-';
+        const self = resolve(getKeyValue(obj, key), params);
+        const datasets = key !== 'transition' && {
+            [`${datasetPrefix}section`]: toFlatCase(key)
+        };
+        return mergeProps(self, datasets);
+    }
 }
 
 @NgModule({
     imports: [FloatLabel, SharedModule],
     exports: [FloatLabel, SharedModule]
 })
+
 export class FloatLabelModule {}
