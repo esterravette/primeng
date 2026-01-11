@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { booleanAttribute, ChangeDetectionStrategy, Component, Directive, effect, inject, InjectionToken, Input, input, NgModule, SimpleChanges, ViewEncapsulation } from '@angular/core';
-import { addClass, createElement, hasClass, isNotEmpty, removeClass, uuid } from '@primeuix/utils';
+import { isNotEmpty, uuid } from '@primeuix/utils';
 import { SharedModule } from 'primeng/api';
 import { BaseComponent, PARENT_INSTANCE } from 'primeng/basecomponent';
 import { Bind, BindModule } from 'primeng/bind';
@@ -88,13 +88,11 @@ export class BadgeDirective extends BaseComponent {
 
     private id!: string;
 
-    badgeEl: HTMLElement;
+    badgeEl: HTMLElement | null;
 
     _componentStyle = inject(BadgeStyle);
 
-    private get activeElement(): HTMLElement {
-        return this.el.nativeElement.nodeName.indexOf('-') != -1 ? this.el.nativeElement.firstChild : this.el.nativeElement;
-    }
+    // lógica de activeElement removida para usar o host nativo padrão
 
     private get canUpdateBadge(): boolean {
         return isNotEmpty(this.id) && !this.disabled;
@@ -123,88 +121,71 @@ export class BadgeDirective extends BaseComponent {
             return;
         }
 
-        if (severity) {
-            this.setSeverity(severity.previousValue);
-        }
-
-        if (size) {
-            this.setSizeClasses();
-        }
-
-        if (value) {
-            this.setValue();
-        }
-
-        if (badgeStyle || badgeStyleClass) {
-            this.applyStyles();
+        // reorganização para evitar buscas repetitivas no DOM
+        if (!this.badgeEl) {
+            this.renderBadgeContent();
+        } else {
+            if (severity) {
+                this.updateSeverity(severity.currentValue, severity.previousValue);
+            }
+            if (size) {
+                this.updateSize();
+            }
+            if (value) {
+                this.updateValue();
+            }
+            if (badgeStyle || badgeStyleClass) {
+                this.applyStyles();
+            }
         }
     }
 
     onAfterViewInit(): void {
         this.id = uuid('pn_id_') + '_badge';
-        this.renderBadgeContent();
+        if (!this.badgeEl) {
+            this.renderBadgeContent();
+        }
     }
 
-    private setValue(element?: HTMLElement): void {
-        const badge = element ?? this.document.getElementById(this.id);
-
-        if (!badge) {
-            return;
-        }
+    private updateValue(): void {
+        if (!this.badgeEl) return;
 
         if (this.value != null) {
-            if (hasClass(badge, 'p-badge-dot')) {
-                removeClass(badge, 'p-badge-dot');
-            }
+            // removeClass via Renderer2
+            this.renderer.removeClass(this.badgeEl, 'p-badge-dot');
 
             if (this.value && String(this.value).length === 1) {
-                addClass(badge, 'p-badge-circle');
+                // addClass via Renderer2
+                this.renderer.addClass(this.badgeEl, 'p-badge-circle');
             } else {
-                removeClass(badge, 'p-badge-circle');
+                this.renderer.removeClass(this.badgeEl, 'p-badge-circle');
             }
         } else {
-            if (!hasClass(badge, 'p-badge-dot')) {
-                addClass(badge, 'p-badge-dot');
-            }
-
-            removeClass(badge, 'p-badge-circle');
+            this.renderer.addClass(this.badgeEl, 'p-badge-dot');
+            this.renderer.removeClass(this.badgeEl, 'p-badge-circle');
         }
 
-        badge.textContent = '';
+        // manipulação segura de texto
         const badgeValue = this.value != null ? String(this.value) : '';
-        this.renderer.appendChild(badge, this.document.createTextNode(badgeValue));
+        this.renderer.setProperty(this.badgeEl, 'textContent', badgeValue);
     }
 
-    private setSizeClasses(element?: HTMLElement): void {
-        const badge = element ?? this.document.getElementById(this.id);
+    private updateSize(): void {
+        if (!this.badgeEl) return;
 
-        if (!badge) {
-            return;
-        }
+        const size = this.badgeSize || this.size;
 
-        if (this.badgeSize) {
-            if (this.badgeSize === 'large') {
-                addClass(badge, 'p-badge-lg');
-                removeClass(badge, 'p-badge-xl');
-            }
-
-            if (this.badgeSize === 'xlarge') {
-                addClass(badge, 'p-badge-xl');
-                removeClass(badge, 'p-badge-lg');
-            }
-        } else if (this.size && !this.badgeSize) {
-            if (this.size === 'large') {
-                addClass(badge, 'p-badge-lg');
-                removeClass(badge, 'p-badge-xl');
-            }
-
-            if (this.size === 'xlarge') {
-                addClass(badge, 'p-badge-xl');
-                removeClass(badge, 'p-badge-lg');
+        if (size) {
+            if (size === 'large') {
+                this.renderer.addClass(this.badgeEl, 'p-badge-lg');
+                this.renderer.removeClass(this.badgeEl, 'p-badge-xl');
+            } else if (size === 'xlarge') {
+                this.renderer.addClass(this.badgeEl, 'p-badge-xl');
+                this.renderer.removeClass(this.badgeEl, 'p-badge-lg');
             }
         } else {
-            removeClass(badge, 'p-badge-lg');
-            removeClass(badge, 'p-badge-xl');
+            this.renderer.removeClass(this.badgeEl, 'p-badge-lg');
+            this.renderer.removeClass(this.badgeEl, 'p-badge-xl');
         }
     }
 
@@ -213,41 +194,49 @@ export class BadgeDirective extends BaseComponent {
             return;
         }
 
-        const el = this.activeElement;
-        const badge = <HTMLElement>createElement('span', { class: this.cx('root'), id: this.id, 'p-bind': this.ptm('root') });
-        this.setSeverity(null, badge);
-        this.setSizeClasses(badge);
-        this.setValue(badge);
-        addClass(el, 'p-overlay-badge');
-        this.renderer.appendChild(el, badge);
-        this.badgeEl = badge;
+        // criação de elemento via Renderer2
+        this.badgeEl = this.renderer.createElement('span');
+        this.renderer.setAttribute(this.badgeEl, 'id', this.id);
+
+        // aplica classes iniciais
+        const rootClass = this.cx('root');
+        if (rootClass) {
+            rootClass.split(' ').forEach((c) => this.renderer.addClass(this.badgeEl, c));
+        }
+
+        this.updateSeverity(this.severity);
+        this.updateSize();
+        this.updateValue();
         this.applyStyles();
+
+        // adiciona classe ao host via Renderer2
+        this.renderer.addClass(this.el.nativeElement, 'p-overlay-badge');
+        // append via Renderer2
+        this.renderer.appendChild(this.el.nativeElement, this.badgeEl);
     }
 
     private applyStyles(): void {
-        if (this.badgeEl && this.badgeStyle && typeof this.badgeStyle === 'object') {
-            for (const [key, value] of Object.entries(this.badgeStyle)) {
-                this.renderer.setStyle(this.badgeEl, key, value);
+        if (this.badgeEl) {
+            if (this.badgeStyle) {
+                for (const [key, value] of Object.entries(this.badgeStyle)) {
+                    this.renderer.setStyle(this.badgeEl, key, value);
+                }
             }
-        }
-        if (this.badgeEl && this.badgeStyleClass) {
-            this.badgeEl.classList.add(...this.badgeStyleClass.split(' '));
+            if (this.badgeStyleClass) {
+                this.badgeStyleClass.split(' ').forEach((c) => this.renderer.addClass(this.badgeEl, c));
+            }
         }
     }
 
-    private setSeverity(oldSeverity?: 'success' | 'info' | 'warn' | 'danger' | null, element?: HTMLElement): void {
-        const badge = element ?? this.document.getElementById(this.id);
+    private updateSeverity(newSeverity: string | null | undefined, oldSeverity?: string | null): void {
+        if (!this.badgeEl) return;
 
-        if (!badge) {
-            return;
-        }
-
-        if (this.severity) {
-            addClass(badge, `p-badge-${this.severity}`);
+        if (newSeverity) {
+            this.renderer.addClass(this.badgeEl, `p-badge-${newSeverity}`);
         }
 
         if (oldSeverity) {
-            removeClass(badge, `p-badge-${oldSeverity}`);
+            this.renderer.removeClass(this.badgeEl, `p-badge-${oldSeverity}`);
         }
     }
 
@@ -257,13 +246,15 @@ export class BadgeDirective extends BaseComponent {
         }
 
         if (this.disabled) {
-            const badge = this.activeElement?.querySelector(`#${this.id}`);
-
-            if (badge) {
-                this.renderer.removeChild(this.activeElement, badge);
+            if (this.badgeEl) {
+                // remove child via Renderer2 e limpa referência
+                this.renderer.removeChild(this.el.nativeElement, this.badgeEl);
+                this.badgeEl = null;
             }
         } else {
-            this.renderBadgeContent();
+            if (!this.badgeEl) {
+                this.renderBadgeContent();
+            }
         }
     }
 }
