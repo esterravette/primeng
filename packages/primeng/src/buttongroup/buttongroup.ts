@@ -1,6 +1,5 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject, NgModule, ViewEncapsulation } from '@angular/core';
-import { BaseComponent } from 'primeng/basecomponent';
 import { ButtonGroupStyle } from './style/buttongroupstyle';
 
 @Component({
@@ -16,7 +15,7 @@ import { ButtonGroupStyle } from './style/buttongroupstyle';
     encapsulation: ViewEncapsulation.None,
     providers: [ButtonGroupStyle]
 })
-export class ButtonGroup extends BaseComponent {
+export class ButtonGroup {
     _componentStyle = inject(ButtonGroupStyle);
 }
 
