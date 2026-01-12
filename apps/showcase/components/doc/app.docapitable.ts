@@ -3,11 +3,25 @@ import { CommonModule, Location } from '@angular/common';
 import { booleanAttribute, ChangeDetectionStrategy, Component, Input, numberAttribute, ViewContainerRef } from '@angular/core';
 import { Router } from '@angular/router';
 import { AppDocSectionText } from './app.docsectiontext';
+//definição de interfaces pra agrupar e diminuir os inputs, DocApiTableData e DocApiTableParent.
+export interface DocApiTableData {
+    id: string;
+    label: string;
+    data: any[];
+    description?: string;
+    relatedProp?: string;
+}
+export interface DocApiTableParent {
+    title?: string;
+    description?: string;
+    id?: string;
+}
 
 @Component({
     selector: 'app-docapitable',
     standalone: true,
     imports: [CommonModule, AppDocSectionText],
+    //atualização do template pros novos inputs, estava dando erro de binding no angular
     template: ` <ng-container *ngIf="data">
         <div *ngIf="parentId" class="my-4 pt-4">
             <app-docsectiontext [level]="2"></app-docsectiontext>
@@ -105,7 +119,20 @@ import { AppDocSectionText } from './app.docsectiontext';
 
         <ng-container *ngIf="data[0].data && data[0].data.length > 0">
             <ng-container *ngFor="let childData of data">
-                <app-docapitable [id]="childData.id" [data]="childData.data" [label]="childData.label" [description]="childData.description" [relatedProp]="childData.relatedProp"></app-docapitable>
+                <app-docapitable
+                    [table]="{
+                        id: childData.id,
+                        label: childData.label,
+                        data: childData.data,
+                        description: childData.description,
+                        relatedProp: childData.relatedProp
+                    }"
+                    [parent]="{
+                        id: id,
+                        title: label,
+                        description: description
+                    }">
+                </app-docapitable>
             </ng-container>
         </ng-container>
     </ng-container>`,
@@ -116,35 +143,60 @@ import { AppDocSectionText } from './app.docsectiontext';
             }
         `
     ],
+
+    
+    
     changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class AppDocApiTable {
-    @Input() id: string;
-
-    @Input() label: string;
-
-    @Input() data: any[];
-
-    @Input() description: string;
-
-    @Input() relatedProp: string;
-
-    @Input() parentTitle: string;
-
-    @Input() parentDescription: string;
-
-    @Input() parentId: string;
+    //agrupamento de inputs usando as interfaces.
+    @Input() table!: DocApiTableData;
+    @Input() parent: DocApiTableParent = {};
 
     @Input({ transform: numberAttribute }) level: number;
 
     @Input({ transform: booleanAttribute }) isInterface: boolean = false;
+
+
+    //metodos getters necessário para evitar não acessar config diretamente no HTML
+    get id() {
+        return this.table?.id;
+    }
+
+    get label() {
+        return this.table?.label;
+    }
+
+    get data() {
+        return this.table?.data;
+    }
+
+    get description() {
+        return this.table?.description;
+    }
+
+    get relatedProp() {
+        return this.table?.relatedProp;
+    }
+
+    get parentId() {
+        return this.parent?.id;
+    }
+
+    get parentTitle() {
+        return this.parent?.title;
+    }
+
+    get parentDescription() {
+        return this.parent?.description;
+    }
 
     constructor(
         public viewContainerRef: ViewContainerRef,
         public router: Router,
         public location: Location,
         private configService: AppConfigService
-    ) {}
+    ) { }
 
     get isDarkMode(): boolean {
         return this.configService.appState().darkTheme;
