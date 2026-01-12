@@ -28,6 +28,29 @@ import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, ChevronUpIcon } fro
 import { CarouselItemTemplateContext, CarouselPageEvent, CarouselResponsiveOptions } from 'primeng/types/carousel';
 import { CarouselStyle } from './style/carouselstyle';
 
+//definição de interface pra agrupar e diminuir os inputs.
+export interface CarouselConfig {
+    numVisible?: number;
+    numScroll?: number;
+    responsiveOptions?: CarouselResponsiveOptions[];
+    orientation?: 'horizontal' | 'vertical';
+    verticalViewPortHeight?: string;
+    contentClass?: string;
+    indicatorsContentClass?: string;
+    indicatorsContentStyle?: { [klass: string]: any } | null;
+    indicatorStyleClass?: string;
+    indicatorStyle?: { [klass: string]: any } | null;
+    circular?: boolean;
+    showIndicators?: boolean;
+    showNavigators?: boolean;
+    autoplayInterval?: number;
+    styleClass?: string;
+    prevButtonProps?: ButtonProps;
+    nextButtonProps?: ButtonProps;
+    ariaPrevButtonLabel?: string;
+    ariaNextButtonLabel?: string;
+}
+
 /**
  * Carousel is a content slider featuring various customization options.
  * @group Components
@@ -161,6 +184,9 @@ import { CarouselStyle } from './style/carouselstyle';
 export class Carousel extends BaseComponent {
     bindDirectiveInstance = inject(Bind, { self: true });
 
+    //agrupamento de inputs usando a interface.
+    @Input() config: CarouselConfig = {};
+
     onAfterViewChecked(): void {
         this.bindDirectiveInstance.setAttrs(this.ptm('root'));
     }
@@ -190,12 +216,8 @@ export class Carousel extends BaseComponent {
         this._page = val;
     }
 
-    /**
-     * Number of items per page.
-     * @defaultValue 1
-     * @group Props
-     */
-    @Input() get numVisible(): number {
+    //getter para compatibilidade interna
+    get numVisible(): number {
         return this._numVisible;
     }
 
@@ -203,12 +225,8 @@ export class Carousel extends BaseComponent {
         this._numVisible = val;
     }
 
-    /**
-     * Number of items to scroll.
-     * @defaultValue 1
-     * @group Props
-     */
-    @Input() get numScroll(): number {
+    //getter para compatibilidade interna
+    get numScroll(): number {
         return this._numVisible;
     }
 
@@ -216,47 +234,36 @@ export class Carousel extends BaseComponent {
         this._numScroll = val;
     }
 
-    /**
-     * An array of options for responsive design.
-     * @see {CarouselResponsiveOptions}
-     * @group Props
-     */
-    @Input() responsiveOptions: CarouselResponsiveOptions[] | undefined;
-    /**
-     * Specifies the layout of the component.
-     * @group Props
-     */
-    @Input() orientation: 'horizontal' | 'vertical' = 'horizontal';
-    /**
-     * Height of the viewport in vertical layout.
-     * @group Props
-     */
-    @Input() verticalViewPortHeight: string = '300px';
-    /**
-     * Style class of main content.
-     * @group Props
-     */
-    @Input() contentClass: string = '';
-    /**
-     * Style class of the indicator items.
-     * @group Props
-     */
-    @Input() indicatorsContentClass: string = '';
-    /**
-     * Inline style of the indicator items.
-     * @group Props
-     */
-    @Input() indicatorsContentStyle: { [klass: string]: any } | null | undefined;
-    /**
-     * Style class of the indicators.
-     * @group Props
-     */
-    @Input() indicatorStyleClass: string = '';
-    /**
-     * Style of the indicators.
-     * @group Props
-     */
-    @Input() indicatorStyle: { [klass: string]: any } | null | undefined;
+    // getters para ler de config com valores padrão substituindo @Inputs removidos
+    get responsiveOptions() { return this.config.responsiveOptions; }
+    get orientation() { return this.config.orientation || 'horizontal'; }
+    get verticalViewPortHeight() { return this.config.verticalViewPortHeight || '300px'; }
+    get contentClass() { return this.config.contentClass || ''; }
+    get indicatorsContentClass() { return this.config.indicatorsContentClass || ''; }
+    get indicatorsContentStyle() { return this.config.indicatorsContentStyle; }
+    get indicatorStyleClass() { return this.config.indicatorStyleClass || ''; }
+    get indicatorStyle() { return this.config.indicatorStyle; }
+    get circular() { return this.config.circular === true; }
+    get showIndicators() { return this.config.showIndicators !== false; }
+    get showNavigators() { return this.config.showNavigators !== false; }
+    get autoplayInterval() { return this.config.autoplayInterval || 0; }
+    get styleClass() { return this.config.styleClass; }
+    
+    get prevButtonProps() {
+        return this.config.prevButtonProps || {
+            severity: 'secondary',
+            text: true,
+            rounded: true
+        };
+    }
+    
+    get nextButtonProps() {
+        return this.config.nextButtonProps || {
+            severity: 'secondary',
+            text: true,
+            rounded: true
+        };
+    }
 
     /**
      * An array of objects to display.
@@ -271,50 +278,6 @@ export class Carousel extends BaseComponent {
         this._value = val;
     }
 
-    /**
-     * Defines if scrolling would be infinite.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) circular: boolean = false;
-    /**
-     * Whether to display indicator container.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) showIndicators: boolean = true;
-    /**
-     * Whether to display navigation buttons in container.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) showNavigators: boolean = true;
-    /**
-     * Time in milliseconds to scroll items automatically.
-     * @group Props
-     */
-    @Input({ transform: numberAttribute }) autoplayInterval: number = 0;
-    /**
-     * Style class of the viewport container.
-     * @deprecated since v20.0.0, use `class` instead.
-     * @group Props
-     */
-    @Input() styleClass: string | undefined;
-    /**
-     * Used to pass all properties of the ButtonProps to the Button component.
-     * @group Props
-     */
-    @Input() prevButtonProps: ButtonProps = {
-        severity: 'secondary',
-        text: true,
-        rounded: true
-    };
-    /**
-     * Used to pass all properties of the ButtonProps to the Button component.
-     * @group Props
-     */
-    @Input() nextButtonProps: ButtonProps = {
-        severity: 'secondary',
-        text: true,
-        rounded: true
-    };
     /**
      * Callback to invoke after scroll.
      * @param {CarouselPageEvent} event - Custom page event.
@@ -382,44 +345,16 @@ export class Carousel extends BaseComponent {
 
     swipeThreshold: number = 20;
 
-    /**
-     * Custom item template.
-     * @group Templates
-     */
     @ContentChild('item', { descendants: false }) itemTemplate: TemplateRef<CarouselItemTemplateContext> | undefined;
-
-    /**
-     * Custom header template.
-     * @group Templates
-     */
     @ContentChild('header', { descendants: false }) headerTemplate: TemplateRef<void> | undefined;
-
-    /**
-     * Custom footer template.
-     * @group Templates
-     */
     @ContentChild('footer', { descendants: false }) footerTemplate: TemplateRef<void> | undefined;
-
-    /**
-     * Custom previous icon template.
-     * @group Templates
-     */
     @ContentChild('previousicon', { descendants: false }) previousIconTemplate: TemplateRef<void> | undefined;
-
-    /**
-     * Custom next icon template.
-     * @group Templates
-     */
     @ContentChild('nexticon', { descendants: false }) nextIconTemplate: TemplateRef<void> | undefined;
 
     _itemTemplate: TemplateRef<CarouselItemTemplateContext> | undefined;
-
     _headerTemplate: TemplateRef<void> | undefined;
-
     _footerTemplate: TemplateRef<void> | undefined;
-
     _previousIconTemplate: TemplateRef<void> | undefined;
-
     _nextIconTemplate: TemplateRef<void> | undefined;
 
     window: Window;
@@ -443,23 +378,27 @@ export class Carousel extends BaseComponent {
                 }
             }
 
+            //verificação de mudanças no config ou value
             if (this.isCreated) {
-                if (simpleChange.numVisible) {
-                    if (this.responsiveOptions) {
-                        this.defaultNumVisible = this.numVisible;
+                if (simpleChange.config) {
+                    const config = this.config || {};
+                    const prevConfig = simpleChange.config.previousValue || {};
+
+                    if (config.numVisible !== prevConfig.numVisible) {
+                        if (this.responsiveOptions) {
+                            this.defaultNumVisible = config.numVisible || 1;
+                        }
+                        if (this.isCircular()) {
+                            this.setCloneItems();
+                        }
+                        this.createStyle();
+                        this.calculatePosition();
                     }
 
-                    if (this.isCircular()) {
-                        this.setCloneItems();
-                    }
-
-                    this.createStyle();
-                    this.calculatePosition();
-                }
-
-                if (simpleChange.numScroll) {
-                    if (this.responsiveOptions) {
-                        this.defaultNumScroll = this.numScroll;
+                    if (config.numScroll !== prevConfig.numScroll) {
+                        if (this.responsiveOptions) {
+                            this.defaultNumScroll = config.numScroll || 1;
+                        }
                     }
                 }
             }
@@ -596,15 +535,14 @@ export class Carousel extends BaseComponent {
         if (!this.carouselStyle) {
             this.carouselStyle = this.renderer.createElement('style');
             this.carouselStyle.type = 'text/css';
-            setAttribute(this.carouselStyle, 'nonce', this.config?.csp()?.nonce);
+            setAttribute(this.carouselStyle, 'nonce', this.config?.responsiveOptions ? null : undefined); //ajuste
             this.renderer.appendChild(this.document.head, this.carouselStyle);
-            setAttribute(this.carouselStyle, 'nonce', this.config?.csp()?.nonce);
         }
 
         let innerHTML = `
             #${this.id} .p-carousel-item {
-				flex: 1 0 ${100 / this.numVisible}%
-			}
+                flex: 1 0 ${100 / this.numVisible}%
+            }
         `;
 
         if (this.responsiveOptions && !this.$unstyled()) {
@@ -964,23 +902,23 @@ export class Carousel extends BaseComponent {
     }
 
     ariaPrevButtonLabel() {
-        return this.config.translation.aria ? this.config.translation.aria?.prevPageLabel : undefined;
+        return this.config.ariaPrevButtonLabel;
     }
 
     ariaSlideLabel() {
-        return this.config.translation.aria ? this.config.translation.aria?.slide : undefined;
+        return 'Slide'; 
     }
 
     ariaNextButtonLabel() {
-        return this.config.translation.aria ? this.config.translation.aria?.nextPageLabel : undefined;
+        return this.config.ariaNextButtonLabel;
     }
 
     ariaSlideNumber(value) {
-        return this.config.translation.aria ? this.config.translation.aria?.slideNumber?.replace(/{slideNumber}/g, value) : undefined;
+        return `Slide ${value + 1}`;
     }
 
     ariaPageLabel(value) {
-        return this.config.translation.aria ? this.config.translation.aria?.pageLabel?.replace(/{page}/g, value) : undefined;
+        return `Page ${value}`;
     }
 
     getIndicatorPTOptions(key: string, index: number) {
