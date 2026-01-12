@@ -1,7 +1,10 @@
 import { CommonModule } from '@angular/common';
 import {
+    AfterContentInit,
+    AfterViewChecked,
     booleanAttribute,
     ChangeDetectionStrategy,
+    ChangeDetectorRef,
     Component,
     ContentChild,
     ContentChildren,
@@ -11,23 +14,23 @@ import {
     HostListener,
     inject,
     InjectionToken,
+    Injector,
     input,
     Input,
     NgModule,
     numberAttribute,
+    OnInit,
     Output,
     QueryList,
     TemplateRef,
     ViewChild,
     ViewEncapsulation
 } from '@angular/core';
-import { NG_VALUE_ACCESSOR } from '@angular/forms';
+import { ControlValueAccessor, NG_VALUE_ACCESSOR, NgControl } from '@angular/forms';
 import { PrimeTemplate, SharedModule } from 'primeng/api';
 import { AutoFocus } from 'primeng/autofocus';
-import { PARENT_INSTANCE } from 'primeng/basecomponent';
-import { BaseEditableHolder } from 'primeng/baseeditableholder';
 import { Bind, BindModule } from 'primeng/bind';
-import { ToggleSwitchChangeEvent, ToggleSwitchHandleTemplateContext, ToggleSwitchPassThrough } from 'primeng/types/toggleswitch';
+import { ToggleSwitchChangeEvent, ToggleSwitchHandleTemplateContext } from 'primeng/types/toggleswitch';
 import { ToggleSwitchStyle } from './style/toggleswitchstyle';
 
 const TOGGLESWITCH_INSTANCE = new InjectionToken<ToggleSwitch>('TOGGLESWITCH_INSTANCE');
@@ -37,6 +40,7 @@ export const TOGGLESWITCH_VALUE_ACCESSOR: any = {
     useExisting: forwardRef(() => ToggleSwitch),
     multi: true
 };
+
 /**
  * ToggleSwitch is used to select a boolean value.
  * @group Components
@@ -73,24 +77,32 @@ export const TOGGLESWITCH_VALUE_ACCESSOR: any = {
             </div>
         </div>
     `,
-    providers: [TOGGLESWITCH_VALUE_ACCESSOR, ToggleSwitchStyle, { provide: TOGGLESWITCH_INSTANCE, useExisting: ToggleSwitch }, { provide: PARENT_INSTANCE, useExisting: ToggleSwitch }],
+    providers: [TOGGLESWITCH_VALUE_ACCESSOR, ToggleSwitchStyle, { provide: TOGGLESWITCH_INSTANCE, useExisting: ToggleSwitch }],
     changeDetection: ChangeDetectionStrategy.OnPush,
     encapsulation: ViewEncapsulation.None,
     host: {
-        '[class]': "cn(cx('root'), styleClass)",
-        '[style]': "sx('root')",
+        // cn(cx('root')...) substituído por getter local hostClasses
+        '[class]': 'hostClasses',
+        // sx('root') substituído por getter local hostStyle
+        '[style]': 'hostStyle',
         '[attr.data-p-checked]': 'checked()',
         '[attr.data-p-disabled]': '$disabled()',
         '[attr.data-p]': 'dataP'
     },
     hostDirectives: [Bind]
 })
-export class ToggleSwitch extends BaseEditableHolder<ToggleSwitchPassThrough> {
+
+// extends BaseEditableHolder removido e implementado interfaces manualmente
+export class ToggleSwitch implements ControlValueAccessor, OnInit, AfterContentInit, AfterViewChecked {
+    // injeção de dependências herdadas
+    private cd = inject(ChangeDetectorRef);
+    private injector = inject(Injector);
+
     $pcToggleSwitch: ToggleSwitch | undefined = inject(TOGGLESWITCH_INSTANCE, { optional: true, skipSelf: true }) ?? undefined;
 
     bindDirectiveInstance = inject(Bind, { self: true });
 
-    onAfterViewChecked(): void {
+    ngAfterViewChecked(): void {
         this.bindDirectiveInstance.setAttrs(this.ptms(['host', 'root']));
     }
 
@@ -130,12 +142,18 @@ export class ToggleSwitch extends BaseEditableHolder<ToggleSwitchPassThrough> {
      * @group Props
      */
     @Input() ariaLabel: string | undefined;
+
     /**
      * Specifies the size of the component.
      * @defaultValue undefined
      * @group Props
      */
     size = input<'large' | 'small' | undefined>();
+
+    // inputs signal para name e required para compatibilidade com template adicionados
+    name = input<string>();
+    required = input<boolean, unknown>(false, { transform: booleanAttribute });
+
     /**
      * Establishes relationships between the component and label(s) where its value should be one or more element IDs.
      * @group Props
@@ -146,6 +164,10 @@ export class ToggleSwitch extends BaseEditableHolder<ToggleSwitchPassThrough> {
      * @group Props
      */
     @Input({ transform: booleanAttribute }) autofocus: boolean | undefined;
+
+    // implementação manual do input disabled
+    @Input({ transform: booleanAttribute }) disabled: boolean | undefined;
+
     /**
      * Callback to invoke when the on value change.
      * @param {ToggleSwitchChangeEvent} event - Custom change event.
@@ -153,7 +175,7 @@ export class ToggleSwitch extends BaseEditableHolder<ToggleSwitchPassThrough> {
      */
     @Output() onChange: EventEmitter<ToggleSwitchChangeEvent> = new EventEmitter<ToggleSwitchChangeEvent>();
 
-    @ViewChild('input') input!: ElementRef;
+    @ViewChild('input') inputViewChild!: ElementRef;
     /**
      * Custom handle template.
      * @param {ToggleSwitchHandleTemplateContext} context - handle context.
@@ -170,12 +192,29 @@ export class ToggleSwitch extends BaseEditableHolder<ToggleSwitchPassThrough> {
 
     @ContentChildren(PrimeTemplate) templates!: QueryList<PrimeTemplate>;
 
+    // propriedades locais para substituir ControlValueAccessor do base
+    _value: any;
+    onModelChange: Function = () => {};
+    onModelTouched: Function = () => {};
+    ngControl: NgControl | null = null;
+
+    ngOnInit() {
+        try {
+            this.ngControl = this.injector.get(NgControl, null);
+            if (this.ngControl) {
+                this.ngControl.valueAccessor = this;
+            }
+        } catch (err) {
+            // ignore
+        }
+    }
+
     @HostListener('click', ['$event'])
     onHostClick(event: MouseEvent) {
         this.onClick(event);
     }
 
-    onAfterContentInit() {
+    ngAfterContentInit() {
         this.templates.forEach((item) => {
             switch (item.getType()) {
                 case 'handle':
@@ -190,15 +229,16 @@ export class ToggleSwitch extends BaseEditableHolder<ToggleSwitchPassThrough> {
 
     onClick(event: Event) {
         if (!this.$disabled() && !this.readonly) {
-            this.writeModelValue(this.checked() ? this.falseValue : this.trueValue);
+            const newValue = this.checked() ? this.falseValue : this.trueValue;
+            this.writeValue(newValue);
+            this.onModelChange(newValue);
 
-            this.onModelChange(this.modelValue());
             this.onChange.emit({
                 originalEvent: event,
-                checked: this.modelValue()
+                checked: newValue
             });
 
-            this.input.nativeElement.focus();
+            this.inputViewChild.nativeElement.focus();
         }
     }
 
@@ -212,26 +252,70 @@ export class ToggleSwitch extends BaseEditableHolder<ToggleSwitchPassThrough> {
     }
 
     checked() {
-        return this.modelValue() === this.trueValue;
+        return this._value === this.trueValue;
     }
 
-    /**
-     * @override
-     *
-     * @see {@link BaseEditableHolder.writeControlValue}
-     * Writes the value to the control.
-     */
-    writeControlValue(value: any, setModelValue: (value: any) => void): void {
-        setModelValue(value);
+    writeValue(value: any): void {
+        this._value = value;
         this.cd.markForCheck();
     }
 
+    registerOnChange(fn: Function): void {
+        this.onModelChange = fn;
+    }
+
+    registerOnTouched(fn: Function): void {
+        this.onModelTouched = fn;
+    }
+
+    setDisabledState(val: boolean): void {
+        this.disabled = val;
+        this.cd.markForCheck();
+    }
+
+    $disabled() {
+        return this.disabled;
+    }
+
+    invalid() {
+        return this.ngControl ? this.ngControl.invalid && (this.ngControl.dirty || this.ngControl.touched) : false;
+    }
+
+    cx(key: string): string {
+        const base = 'p-toggleswitch';
+        const classes: any = {
+            input: `${base}-input`,
+            slider: `${base}-slider`,
+            handle: `${base}-handle`
+        };
+        return classes[key] || '';
+    }
+
+    get hostClasses(): string {
+        const classes = ['p-toggleswitch p-component'];
+
+        if (this.checked()) classes.push('p-toggleswitch-checked');
+        if (this.$disabled()) classes.push('p-disabled');
+        if (this.size()) classes.push(`p-toggleswitch-${this.size()}`);
+        if (this.styleClass) classes.push(this.styleClass);
+
+        return classes.join(' ');
+    }
+
+    get hostStyle(): any {
+        return null;
+    }
+
+    ptm(key: string) {
+        return undefined;
+    }
+
+    ptms(keys: string[]) {
+        return {};
+    }
+
     get dataP() {
-        return this.cn({
-            checked: this.checked(),
-            disabled: this.$disabled(),
-            invalid: this.invalid()
-        });
+        return [this.checked() ? 'checked' : '', this.$disabled() ? 'disabled' : '', this.invalid() ? 'invalid' : ''].filter(Boolean).join(' ');
     }
 }
 

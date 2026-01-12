@@ -1,10 +1,9 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, ContentChild, ContentChildren, inject, InjectionToken, Input, NgModule, QueryList, TemplateRef, ViewEncapsulation } from '@angular/core';
+import { AfterContentInit, AfterViewChecked, ChangeDetectionStrategy, Component, ContentChild, ContentChildren, ElementRef, inject, InjectionToken, Input, NgModule, QueryList, TemplateRef, ViewEncapsulation } from '@angular/core';
 import { BlockableUI, PrimeTemplate, SharedModule } from 'primeng/api';
-import { BaseComponent, PARENT_INSTANCE } from 'primeng/basecomponent';
 import { Bind } from 'primeng/bind';
 import { Nullable } from 'primeng/ts-helpers';
-import { TimelineItemTemplateContext, TimelinePassThrough } from 'primeng/types/timeline';
+import { TimelineItemTemplateContext } from 'primeng/types/timeline';
 import { TimelineStyle } from './style/timelinestyle';
 
 const TIMELINE_INSTANCE = new InjectionToken<Timeline>('TIMELINE_INSTANCE');
@@ -38,21 +37,24 @@ const TIMELINE_INSTANCE = new InjectionToken<Timeline>('TIMELINE_INSTANCE');
     `,
     changeDetection: ChangeDetectionStrategy.OnPush,
     encapsulation: ViewEncapsulation.None,
-    providers: [TimelineStyle, { provide: TIMELINE_INSTANCE, useExisting: Timeline }, { provide: PARENT_INSTANCE, useExisting: Timeline }],
+    providers: [TimelineStyle, { provide: TIMELINE_INSTANCE, useExisting: Timeline }],
     host: {
-        '[class]': "cn(cx('root'), styleClass)",
+        // cn(cx('root')...) substituído por getter local hostClasses
+        '[class]': 'hostClasses',
         '[attr.data-p]': 'dataP'
     },
     hostDirectives: [Bind]
 })
-export class Timeline extends BaseComponent<TimelinePassThrough> implements BlockableUI {
+
+// extends BaseComponent removido, BlockableUI e interfaces de lifecycle implementados
+export class Timeline implements BlockableUI, AfterContentInit, AfterViewChecked {
+    // injeção explícita de ElementRef
+    el = inject(ElementRef);
+
     bindDirectiveInstance = inject(Bind, { self: true });
 
     $pcTimeline: Timeline | undefined = inject(TIMELINE_INSTANCE, { optional: true, skipSelf: true }) ?? undefined;
 
-    onAfterViewChecked(): void {
-        this.bindDirectiveInstance.setAttrs(this.ptms(['host', 'root']));
-    }
     /**
      * An array of events to display.
      * @group Props
@@ -112,7 +114,7 @@ export class Timeline extends BaseComponent<TimelinePassThrough> implements Bloc
         return this.el.nativeElement.children[0];
     }
 
-    onAfterContentInit() {
+    ngAfterContentInit() {
         (this.templates as QueryList<PrimeTemplate>).forEach((item) => {
             switch (item.getType()) {
                 case 'content':
@@ -130,11 +132,34 @@ export class Timeline extends BaseComponent<TimelinePassThrough> implements Bloc
         });
     }
 
+    // implementação local de cx para substituir a lógica herdada
+    cx(key: string): string {
+        // mapeamento simples das classes padrão do Timeline
+        const classes: { [key: string]: string } = {
+            event: 'p-timeline-event',
+            eventOpposite: 'p-timeline-event-opposite',
+            eventSeparator: 'p-timeline-event-separator',
+            eventMarker: 'p-timeline-event-marker',
+            eventConnector: 'p-timeline-event-connector',
+            eventContent: 'p-timeline-event-content'
+        };
+        return classes[key] || '';
+    }
+
+    // lógica de classes do host trazida para getter local
+    get hostClasses(): string {
+        const classes = ['p-timeline p-component'];
+
+        if (this.layout) classes.push(`p-timeline-${this.layout}`);
+        if (this.align) classes.push(`p-timeline-${this.align}`);
+        if (this.styleClass) classes.push(this.styleClass);
+
+        return classes.join(' ');
+    }
+
+    // lógica de data attribute local
     get dataP() {
-        return this.cn({
-            [this.layout]: this.layout,
-            [this.align]: this.align
-        });
+        return [this.layout, this.align].filter(Boolean).join(' ');
     }
 }
 

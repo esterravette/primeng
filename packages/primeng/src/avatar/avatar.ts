@@ -1,8 +1,9 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, EventEmitter, HostBinding, inject, InjectionToken, Input, NgModule, Output, ViewEncapsulation } from '@angular/core';
+import { AfterViewChecked, ChangeDetectionStrategy, Component, EventEmitter, inject, InjectionToken, Input, input, NgModule, Output, ViewEncapsulation } from '@angular/core';
+import { cn, getKeyValue, mergeProps, resolve, toFlatCase } from '@primeuix/utils';
 import { SharedModule } from 'primeng/api';
-import { BaseComponent, PARENT_INSTANCE } from 'primeng/basecomponent';
 import { Bind } from 'primeng/bind';
+import { PrimeNG } from 'primeng/config';
 import { AvatarPassThrough } from 'primeng/types/avatar';
 import { AvatarStyle } from './style/avatarstyle';
 
@@ -25,22 +26,28 @@ const AVATAR_INSTANCE = new InjectionToken<Avatar>('AVATAR_INSTANCE');
     changeDetection: ChangeDetectionStrategy.OnPush,
     encapsulation: ViewEncapsulation.None,
     host: {
-        '[class]': "cn(cx('root'), styleClass)",
+        // lógica movida para getter local 'hostClasses'
+        '[class]': 'hostClasses',
         '[attr.aria-label]': 'ariaLabel',
         '[attr.aria-labelledby]': 'ariaLabelledBy',
         '[attr.data-p]': 'dataP'
     },
-    providers: [AvatarStyle, { provide: AVATAR_INSTANCE, useExisting: Avatar }, { provide: PARENT_INSTANCE, useExisting: Avatar }],
+
+    providers: [AvatarStyle, { provide: AVATAR_INSTANCE, useExisting: Avatar }],
     hostDirectives: [Bind]
 })
-export class Avatar extends BaseComponent<AvatarPassThrough> {
-    $pcAvatar: Avatar | undefined = inject(AVATAR_INSTANCE, { optional: true, skipSelf: true }) ?? undefined;
+export class Avatar implements AfterViewChecked {
+    // injeção de dependência direta
+    // o componente pede os dados que precisa, não uma classe base que faz tudo
+    config = inject(PrimeNG);
+    private style = inject(AvatarStyle);
 
     bindDirectiveInstance = inject(Bind, { self: true });
+    $pcAvatar: Avatar | undefined = inject(AVATAR_INSTANCE, { optional: true, skipSelf: true }) ?? undefined;
 
-    onAfterViewChecked(): void {
-        this.bindDirectiveInstance.setAttrs(this.ptms(['host', 'root']));
-    }
+    unstyled = input<boolean>(false);
+    pt = input<AvatarPassThrough | undefined>();
+
     /**
      * Defines the text to display.
      * @group Props
@@ -91,12 +98,57 @@ export class Avatar extends BaseComponent<AvatarPassThrough> {
 
     _componentStyle = inject(AvatarStyle);
 
+    constructor() {}
+
+    ngAfterViewChecked(): void {
+        this.bindDirectiveInstance.setAttrs(this.ptms(['host', 'root']));
+    }
+
     imageError(event: Event) {
         this.onImageError.emit(event);
     }
 
+    // lógica local de classes
+    cx(key: string, params = {}) {
+        // verifica o estado local (signal unstyled)
+        if (this.unstyled()) return undefined;
+
+        // busca as classes diretamente no estilo injetado (AvatarStyle)
+        const classes = getKeyValue(this.style.classes, key, params);
+        return cn(classes);
+    }
+
+    // getter para classes do host
+    get hostClasses(): string {
+        const rootClasses = this.cx('root');
+        return cn(rootClasses, this.styleClass) ?? '';
+    }
+
+    // lógica local de PassThrough (ptm)
+    ptm(key: string, params = {}) {
+        const ptConfig = this.pt() || {};
+        return this.getPTValue(ptConfig, key, params);
+    }
+
+    ptms(keys: string[], params = {}) {
+        return keys.reduce((acc, arg) => {
+            // mergeProps importado de utils, sem "this.baseService"
+            acc = mergeProps(acc, this.ptm(arg, params)) || {};
+            return acc;
+        }, {});
+    }
+
+    private getPTValue(obj: any, key: string, params: any) {
+        const datasetPrefix = 'data-pc-';
+        const self = resolve(getKeyValue(obj, key), params);
+        const datasets = key !== 'transition' && {
+            [`${datasetPrefix}section`]: toFlatCase(key)
+        };
+        return mergeProps(self, datasets);
+    }
+
     get dataP() {
-        return this.cn({
+        return cn({
             [this.shape as string]: this.shape,
             [this.size as string]: this.size
         });

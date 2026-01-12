@@ -1,14 +1,12 @@
 import { CommonModule } from '@angular/common';
-import { booleanAttribute, ChangeDetectionStrategy, Component, Directive, effect, inject, InjectionToken, Input, input, NgModule, SimpleChanges, ViewEncapsulation } from '@angular/core';
+import { AfterViewInit, booleanAttribute, ChangeDetectionStrategy, Component, Directive, ElementRef, inject, InjectionToken, Input, input, NgModule, OnChanges, OnDestroy, Renderer2, SimpleChanges, ViewEncapsulation } from '@angular/core';
 import { isNotEmpty, uuid } from '@primeuix/utils';
 import { SharedModule } from 'primeng/api';
-import { BaseComponent, PARENT_INSTANCE } from 'primeng/basecomponent';
 import { Bind, BindModule } from 'primeng/bind';
 import type { BadgePassThrough } from 'primeng/types/badge';
 import { BadgeStyle } from './style/badgestyle';
 
 const BADGE_INSTANCE = new InjectionToken<Badge>('BADGE_INSTANCE');
-
 const BADGE_DIRECTIVE_INSTANCE = new InjectionToken<BadgeDirective>('BADGE_DIRECTIVE_INSTANCE');
 
 /**
@@ -17,10 +15,14 @@ const BADGE_DIRECTIVE_INSTANCE = new InjectionToken<BadgeDirective>('BADGE_DIREC
  */
 @Directive({
     selector: '[pBadge]',
-    providers: [BadgeStyle, { provide: BADGE_DIRECTIVE_INSTANCE, useExisting: BadgeDirective }, { provide: PARENT_INSTANCE, useExisting: BadgeDirective }],
+    providers: [BadgeStyle, { provide: BADGE_DIRECTIVE_INSTANCE, useExisting: BadgeDirective }],
     standalone: true
 })
-export class BadgeDirective extends BaseComponent {
+export class BadgeDirective implements OnChanges, AfterViewInit, OnDestroy {
+    // injeção explícita de dependências que antes eram herdadas
+    private el = inject(ElementRef);
+    private renderer = inject(Renderer2);
+
     $pcBadgeDirective: BadgeDirective | undefined = inject(BADGE_DIRECTIVE_INSTANCE, { optional: true, skipSelf: true }) ?? undefined;
 
     /**
@@ -98,19 +100,9 @@ export class BadgeDirective extends BaseComponent {
         return isNotEmpty(this.id) && !this.disabled;
     }
 
-    constructor() {
-        super();
-        effect(() => {
-            const pt = this.ptBadgeDirective() || this.pBadgePT();
-            pt && this.directivePT.set(pt);
-        });
+    constructor() {}
 
-        effect(() => {
-            this.pBadgeUnstyled() && this.directiveUnstyled.set(this.pBadgeUnstyled());
-        });
-    }
-
-    onChanges(changes: SimpleChanges): void {
+    ngOnChanges(changes: SimpleChanges): void {
         const { value, size, severity, disabled, badgeStyle, badgeStyleClass } = changes;
 
         if (disabled) {
@@ -140,7 +132,7 @@ export class BadgeDirective extends BaseComponent {
         }
     }
 
-    onAfterViewInit(): void {
+    ngAfterViewInit(): void {
         this.id = uuid('pn_id_') + '_badge';
         if (!this.badgeEl) {
             this.renderBadgeContent();
@@ -190,9 +182,10 @@ export class BadgeDirective extends BaseComponent {
     }
 
     private renderBadgeContent(): void {
-        if (this.disabled) {
-            return;
-        }
+        if (this.disabled) return;
+
+        this.badgeEl = this.renderer.createElement('span');
+        this.renderer.setAttribute(this.badgeEl, 'id', this.id);
 
         // criação de elemento via Renderer2
         this.badgeEl = this.renderer.createElement('span');
@@ -241,10 +234,7 @@ export class BadgeDirective extends BaseComponent {
     }
 
     private toggleDisableState(): void {
-        if (!this.id) {
-            return;
-        }
-
+        if (!this.id) return;
         if (this.disabled) {
             if (this.badgeEl) {
                 // remove child via Renderer2 e limpa referência
@@ -258,6 +248,7 @@ export class BadgeDirective extends BaseComponent {
         }
     }
 }
+
 /**
  * Badge is a small status indicator for another element.
  * @group Components
@@ -269,22 +260,19 @@ export class BadgeDirective extends BaseComponent {
     imports: [CommonModule, SharedModule, BindModule],
     changeDetection: ChangeDetectionStrategy.OnPush,
     encapsulation: ViewEncapsulation.None,
-    providers: [BadgeStyle, { provide: BADGE_INSTANCE, useExisting: Badge }, { provide: PARENT_INSTANCE, useExisting: Badge }],
+    providers: [BadgeStyle, { provide: BADGE_INSTANCE, useExisting: Badge }],
     host: {
-        '[class]': "cn(cx('root'), styleClass())",
+        // cx() e cn() herdados removidos. lógica movida para getters locais.
+        '[class]': 'hostClasses',
         '[style.display]': 'badgeDisabled() ? "none" : null',
         '[attr.data-p]': 'dataP'
     },
     hostDirectives: [Bind]
 })
-export class Badge extends BaseComponent<BadgePassThrough> {
+export class Badge {
     $pcBadge: Badge | undefined = inject(BADGE_INSTANCE, { optional: true, skipSelf: true }) ?? undefined;
-
     bindDirectiveInstance = inject(Bind, { self: true });
 
-    onAfterViewChecked(): void {
-        this.bindDirectiveInstance.setAttrs(this.ptms(['host', 'root']));
-    }
     /**
      * Class of the element.
      * @deprecated since v20.0.0, use `class` instead.
@@ -319,14 +307,33 @@ export class Badge extends BaseComponent<BadgePassThrough> {
 
     _componentStyle = inject(BadgeStyle);
 
+    // getter auxiliar para substituir a lógica herdada de cx('root')
+    get hostClasses(): string {
+        const classes = ['p-badge', 'p-component'];
+
+        if (this.value() != null && String(this.value()).length === 1) {
+            classes.push('p-badge-circle');
+        } else if (this.value() == null) {
+            classes.push('p-badge-empty');
+        }
+
+        if (this.severity()) {
+            classes.push(`p-badge-${this.severity()}`);
+        }
+
+        if (this.size()) {
+            classes.push(`p-badge-${this.size()}`);
+        }
+
+        if (this.styleClass()) {
+            classes.push(this.styleClass()!);
+        }
+
+        return classes.join(' ');
+    }
+
     get dataP() {
-        return this.cn({
-            circle: this.value() != null && String(this.value()).length === 1,
-            empty: this.value() == null,
-            disabled: this.badgeDisabled(),
-            [this.severity() as string]: this.severity(),
-            [this.size() as string]: this.size()
-        });
+        return [this.value() != null && String(this.value()).length === 1 ? 'circle' : '', this.value() == null ? 'empty' : '', this.badgeDisabled() ? 'disabled' : '', this.severity(), this.size()].filter(Boolean).join(' ');
     }
 }
 
