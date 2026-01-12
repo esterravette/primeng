@@ -27,6 +27,8 @@ export class Ripple extends BaseComponent {
     mouseDownListener: VoidListener;
 
     timeout: any;
+    // referência em cache para o elemento ink criado para evitar consultas repetidas ao DOM
+    private _ink: any | null = null;
 
     constructor() {
         super();
@@ -48,42 +50,74 @@ export class Ripple extends BaseComponent {
 
     onMouseDown(event: MouseEvent) {
         let ink = this.getInk();
-        if (!ink || this.document.defaultView?.getComputedStyle(ink, null).display === 'none') {
+        if (!ink) {
+            return;
+        }
+
+        // proteção do getComputedStyle com try/catch para evitar erros em alguns ambientes
+        let display: string | undefined;
+        try {
+            display = this.document.defaultView?.getComputedStyle(ink, null).display;
+        } catch {
+            display = undefined;
+        }
+        if (display === 'none') {
             return;
         }
 
         !this.$unstyled() && removeClass(ink, 'p-ink-active');
-        ink.setAttribute('data-p-ink-active', 'false');
+        // uso do renderer para atualizações de atributos
+        this.renderer.setAttribute(ink, 'data-p-ink-active', 'false');
 
         if (!getHeight(ink) && !getWidth(ink)) {
             let d = Math.max(getOuterWidth(this.el.nativeElement), getOuterHeight(this.el.nativeElement));
-            ink.style.height = d + 'px';
-            ink.style.width = d + 'px';
+            // uso do renderer para definir estilos em vez de atribuições diretas de estilo
+            this.renderer.setStyle(ink, 'height', d + 'px');
+            this.renderer.setStyle(ink, 'width', d + 'px');
         }
 
         let offset = <any>getOffset(this.el.nativeElement);
-        let x = event.pageX - offset.left + this.document.body.scrollTop - getWidth(ink) / 2;
-        let y = event.pageY - offset.top + this.document.body.scrollLeft - getHeight(ink) / 2;
+        const pageYOffset = this.document.defaultView?.pageYOffset ?? this.document.body?.scrollTop ?? 0;
+        const pageXOffset = this.document.defaultView?.pageXOffset ?? this.document.body?.scrollLeft ?? 0;
+        // uso de pageXOffset/pageYOffset para coordenadas corretas (e evitar acesso direto a body.scrollTop/Left)
+        let x = event.pageX - offset.left + pageXOffset - getWidth(ink) / 2;
+        let y = event.pageY - offset.top + pageYOffset - getHeight(ink) / 2;
 
         this.renderer.setStyle(ink, 'top', y + 'px');
         this.renderer.setStyle(ink, 'left', x + 'px');
 
         !this.$unstyled() && addClass(ink, 'p-ink-active');
-        ink.setAttribute('data-p-ink-active', 'true');
+        // uso do renderer para definir atributos
+        this.renderer.setAttribute(ink, 'data-p-ink-active', 'true');
 
         this.timeout = setTimeout(() => {
             let ink = this.getInk();
             if (ink) {
                 !this.$unstyled() && removeClass(ink, 'p-ink-active');
-                ink.setAttribute('data-p-ink-active', 'false');
+                // uso do renderer para definir atributos
+                this.renderer.setAttribute(ink, 'data-p-ink-active', 'false');
             }
         }, 401);
     }
 
     getInk() {
+        // uso do _ink em cache quando disponível para evitar travessia repetida do DOM
+        if (this._ink) {
+            try {
+                if (this.el.nativeElement.contains(this._ink)) {
+                    return this._ink;
+                } else {
+                    this._ink = null;
+                }
+            } catch {
+                this._ink = null;
+            }
+        }
+
         const children = this.el.nativeElement.children;
         for (let i = 0; i < children.length; i++) {
             if (typeof children[i].className === 'string' && children[i].className.indexOf('p-ink') !== -1) {
+                this._ink = children[i];
                 return children[i];
             }
         }
@@ -94,7 +128,8 @@ export class Ripple extends BaseComponent {
         let ink = this.getInk();
         if (ink) {
             !this.$unstyled() && removeClass(ink, 'p-ink-active');
-            ink.setAttribute('data-p-ink-active', 'false');
+            // uso do renderer para atualização de atributo
+            this.renderer.setAttribute(ink, 'data-p-ink-active', 'false');
         }
     }
 
@@ -103,8 +138,12 @@ export class Ripple extends BaseComponent {
             clearTimeout(this.timeout);
         }
 
-        !this.$unstyled() && removeClass(event.currentTarget as any, 'p-ink-active');
-        (event.currentTarget as any).setAttribute('data-p-ink-active', 'false');
+        if (!this.$unstyled()) {
+            // uso do renderer para remover classe
+            this.renderer.removeClass(event.currentTarget as any, 'p-ink-active');
+        }
+        // uso do renderer para definir atributo
+        this.renderer.setAttribute(event.currentTarget as any, 'data-p-ink-active', 'false');
     }
 
     create() {
@@ -115,6 +154,9 @@ export class Ripple extends BaseComponent {
         this.renderer.setAttribute(ink, 'data-p-ink-active', 'false');
         this.renderer.setAttribute(ink, 'aria-hidden', 'true');
         this.renderer.setAttribute(ink, 'role', 'presentation');
+
+        // cache do elemento ink criado para evitar futuras travessias do DOM
+        this._ink = ink;
 
         if (!this.animationListener) {
             this.animationListener = this.renderer.listen(ink, 'animationend', this.onAnimationEnd.bind(this));
@@ -130,6 +172,8 @@ export class Ripple extends BaseComponent {
             this.animationListener = null;
 
             utils_remove(ink);
+            // limpeza da referência em cache
+            this._ink = null;
         }
     }
 
@@ -137,6 +181,8 @@ export class Ripple extends BaseComponent {
         if (this.config && this.config.ripple()) {
             this.remove();
         }
+        // garantia de que a referência ink em cache seja limpa ao destruir
+        this._ink = null;
     }
 }
 

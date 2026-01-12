@@ -29,9 +29,11 @@ export class AutoFocus extends BaseComponent {
     onAfterContentChecked() {
         // This sets the `attr.autofocus` which is different than the Input `autofocus` attribute.
         if (this.autofocus === false) {
-            this.host.nativeElement.removeAttribute('autofocus');
+            // uso do Renderer2 em vez de this.host.nativeElement.removeAttribute
+            this.renderer.removeAttribute(this.host.nativeElement, 'autofocus');
         } else {
-            this.host.nativeElement.setAttribute('autofocus', true);
+            // uso do Renderer2 em vez de this.host.nativeElement.setAttribute
+            this.renderer.setAttribute(this.host.nativeElement, 'autofocus', 'true');
         }
 
         if (!this.focused) {
