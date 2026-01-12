@@ -33,6 +33,29 @@ import { Ripple } from 'primeng/ripple';
 import type { ButtonIconTemplateContext, ButtonLoadingIconTemplateContext, ButtonPassThrough, ButtonProps, ButtonSeverity } from 'primeng/types/button';
 import { ButtonStyle } from './style/buttonstyle';
 
+//definição de interface pra agrupar e diminuir os inputs.
+export interface ButtonConfig {
+    text?: boolean;
+    plain?: boolean;
+    raised?: boolean;
+    outlined?: boolean;
+    rounded?: boolean;
+    link?: boolean;
+    size?: 'small' | 'large';
+    severity?: ButtonSeverity;
+    variant?: 'outlined' | 'text';
+    iconPos?: ButtonIconPosition;
+    loadingIcon?: string;
+    type?: string;
+    tabindex?: number;
+    style?: { [klass: string]: any };
+    styleClass?: string;
+    badgeClass?: string;
+    badgeSeverity?: 'success' | 'info' | 'warn' | 'danger' | 'help' | 'primary' | 'secondary' | 'contrast';
+    ariaLabel?: string;
+    autofocus?: boolean;
+}
+
 const BUTTON_INSTANCE = new InjectionToken<Button>('BUTTON_INSTANCE');
 
 const BUTTON_DIRECTIVE_INSTANCE = new InjectionToken<ButtonDirective>('BUTTON_DIRECTIVE_INSTANCE');
@@ -196,6 +219,9 @@ export class ButtonDirective extends BaseComponent {
 
     @Input() hostName: any = '';
 
+    //input de config add de acordo com a interface
+    @Input() config: ButtonConfig = {};
+
     onAfterViewChecked(): void {
         this.bindDirectiveInstance.setAttrs(this.ptm('root'));
     }
@@ -220,53 +246,17 @@ export class ButtonDirective extends BaseComponent {
         });
     }
 
-    /**
-     * Add a textual class to the button without a background initially.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) text: boolean = false;
+    //remoção de inputs
+    // They are now accessed via this.config.* in the logic below.
 
-    /**
-     * Add a plain textual class to the button without a background initially.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) plain: boolean = false;
-
-    /**
-     * Add a shadow to indicate elevation.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) raised: boolean = false;
-
-    /**
-     * Defines the size of the button.
-     * @group Props
-     */
-    @Input() size: 'small' | 'large' | undefined;
-
-    /**
-     * Add a border class without a background initially.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) outlined: boolean = false;
-
-    /**
-     * Add a circular border radius to the button.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) rounded: boolean = false;
-
-    /**
-     * Position of the icon.
-     * @group Props
-     */
-    @Input() iconPos: ButtonIconPosition = 'left';
-
-    /**
-     * Icon to display in loading state.
-     * @group Props
-     */
-    @Input() loadingIcon: string | undefined;
+    text: boolean = false;
+    plain: boolean = false;
+    raised: boolean = false;
+    size: 'small' | 'large' | undefined;
+    outlined: boolean = false;
+    rounded: boolean = false;
+    iconPos: ButtonIconPosition = 'left';
+    loadingIcon: string | undefined;
 
     /**
      * Spans 100% width of the container when enabled.
@@ -301,7 +291,8 @@ export class ButtonDirective extends BaseComponent {
 
     pcFluid: Fluid | null = inject(Fluid, { optional: true, host: true, skipSelf: true });
 
-    isTextButton = computed(() => !!(!this.iconSignal() && this.labelSignal() && this.text));
+    // verificação do config.text 
+    isTextButton = computed(() => !!(!this.iconSignal() && this.labelSignal() && (this.config.text || this.text)));
 
     /**
      * Text of the button.
@@ -379,9 +370,9 @@ export class ButtonDirective extends BaseComponent {
      * Defines the style of the button.
      * @group Props
      */
-    @Input()
+    // remoão input e adição de coondição de this._severity ou this.config.severity;
     get severity(): ButtonSeverity {
-        return this._severity;
+        return this._severity || this.config.severity;
     }
 
     set severity(value: ButtonSeverity) {
@@ -416,6 +407,7 @@ export class ButtonDirective extends BaseComponent {
         }
     }
 
+    // atualização de lógica pra verificação de config
     getStyleClass(): string[] {
         const styleClass: string[] = [INTERNAL_BUTTON_CLASSES.button, INTERNAL_BUTTON_CLASSES.component];
 
@@ -435,7 +427,7 @@ export class ButtonDirective extends BaseComponent {
             }
         }
 
-        if (this.text) {
+        if (this.config.text || this.text) {
             styleClass.push('p-button-text');
         }
 
@@ -443,31 +435,32 @@ export class ButtonDirective extends BaseComponent {
             styleClass.push(`p-button-${this.severity}`);
         }
 
-        if (this.plain) {
+        if (this.config.plain || this.plain) {
             styleClass.push('p-button-plain');
         }
 
-        if (this.raised) {
+        if (this.config.raised || this.raised) {
             styleClass.push('p-button-raised');
         }
 
-        if (this.size) {
-            styleClass.push(`p-button-${this.size}`);
+        const size = this.config.size || this.size;
+        if (size) {
+            styleClass.push(`p-button-${size}`);
         }
 
-        if (this.outlined) {
+        if (this.config.outlined || this.outlined) {
             styleClass.push('p-button-outlined');
         }
 
-        if (this.rounded) {
+        if (this.config.rounded || this.rounded) {
             styleClass.push('p-button-rounded');
         }
 
-        if (this.size === 'small') {
+        if (size === 'small') {
             styleClass.push('p-button-sm');
         }
 
-        if (this.size === 'large') {
+        if (size === 'large') {
             styleClass.push('p-button-lg');
         }
 
@@ -511,11 +504,12 @@ export class ButtonDirective extends BaseComponent {
     createIcon() {
         const created = findSingle(this.htmlElement, '[data-pc-section="buttonicon"]');
         if (!created && (this.icon || this.loading)) {
-            let iconPosClass = this.label && !this.$unstyled() ? 'p-button-icon-' + this.iconPos : null;
+            const iconPos = this.config.iconPos || this.iconPos; //adição de config
+            let iconPosClass = this.label && !this.$unstyled() ? 'p-button-icon-' + iconPos : null;
             let iconClass = !this.$unstyled() && this.getIconClass();
             let iconElement: HTMLElement = <HTMLElement>createElement('span', { class: this.cn(this.cx('icon'), iconPosClass, iconClass), 'aria-hidden': 'true', 'p-bind': this.ptm('buttonicon') });
 
-            if (!this.loadingIcon && this.loading) {
+            if (!this.config.loadingIcon && !this.loadingIcon && this.loading) { //adição de config
                 iconElement.innerHTML = this.spinnerIcon;
             }
 
@@ -537,16 +531,18 @@ export class ButtonDirective extends BaseComponent {
     updateIcon() {
         let iconElement = findSingle(this.htmlElement, '[data-pc-section="buttonicon"]');
         let labelElement = findSingle(this.htmlElement, '[data-pc-section="buttonlabel"]');
+        const loadingIcon = this.config.loadingIcon || this.loadingIcon; //adição de config
 
-        if (this.loading && !this.loadingIcon && iconElement) {
+        if (this.loading && !loadingIcon && iconElement) {
             iconElement.innerHTML = this.spinnerIcon;
         } else if (iconElement?.innerHTML) {
             iconElement.innerHTML = '';
         }
 
         if (iconElement && !this.$unstyled()) {
-            if (this.iconPos) {
-                iconElement.className = 'p-button-icon ' + (labelElement ? 'p-button-icon-' + this.iconPos : '') + ' ' + this.getIconClass();
+            const iconPos = this.config.iconPos || this.iconPos; //adição de config
+            if (iconPos) {
+                iconElement.className = 'p-button-icon ' + (labelElement ? 'p-button-icon-' + iconPos : '') + ' ' + this.getIconClass();
             } else {
                 iconElement.className = 'p-button-icon ' + this.getIconClass();
             }
@@ -556,7 +552,8 @@ export class ButtonDirective extends BaseComponent {
     }
 
     getIconClass() {
-        return this.loading ? 'p-button-loading-icon ' + (this.loadingIcon ? this.loadingIcon : 'p-icon') : this.icon || 'p-hidden';
+        const loadingIcon = this.config.loadingIcon || this.loadingIcon; //adição de config
+        return this.loading ? 'p-button-loading-icon ' + (loadingIcon ? loadingIcon : 'p-icon') : this.icon || 'p-hidden';
     }
 
     onDestroy() {
@@ -573,28 +570,28 @@ export class ButtonDirective extends BaseComponent {
     imports: [CommonModule, Ripple, AutoFocus, SpinnerIcon, BadgeModule, SharedModule, Bind],
     template: `
         <button
-            [attr.type]="type || buttonProps?.type"
-            [attr.aria-label]="ariaLabel || buttonProps?.ariaLabel"
-            [ngStyle]="style || buttonProps?.style"
+            [attr.type]="config.type || type || buttonProps?.type"
+            [attr.aria-label]="config.ariaLabel || ariaLabel || buttonProps?.ariaLabel"
+            [ngStyle]="config.style || style || buttonProps?.style"
             [disabled]="disabled || loading || buttonProps?.disabled"
-            [class]="cn(cx('root'), styleClass, buttonProps?.styleClass)"
+            [class]="cn(cx('root'), config.styleClass || styleClass, buttonProps?.styleClass)"
             (click)="onClick.emit($event)"
             (focus)="onFocus.emit($event)"
             (blur)="onBlur.emit($event)"
             pRipple
-            [attr.tabindex]="tabindex || buttonProps?.tabindex"
-            [pAutoFocus]="autofocus || buttonProps?.autofocus"
+            [attr.tabindex]="config.tabindex || tabindex || buttonProps?.tabindex"
+            [pAutoFocus]="config.autofocus || autofocus || buttonProps?.autofocus"
             [pBind]="ptm('root')"
             [attr.data-p]="dataP"
             [attr.data-p-disabled]="disabled || loading || buttonProps?.disabled"
             [attr.data-p-severity]="severity || buttonProps?.severity"
         >
-            <ng-content></ng-content>
+        <ng-content></ng-content>
             <ng-container *ngTemplateOutlet="contentTemplate || _contentTemplate"></ng-container>
             <ng-container *ngIf="loading || buttonProps?.loading">
                 <ng-container *ngIf="!loadingIconTemplate && !_loadingIconTemplate">
-                    <span *ngIf="loadingIcon || buttonProps?.loadingIcon" [class]="cn(cx('loadingIcon'), 'pi-spin', loadingIcon || buttonProps?.loadingIcon)" [pBind]="ptm('loadingIcon')" [attr.aria-hidden]="true"></span>
-                    <svg data-p-icon="spinner" *ngIf="!(loadingIcon || buttonProps?.loadingIcon)" [class]="cn(cx('loadingIcon'), cx('spinnerIcon'))" [pBind]="ptm('loadingIcon')" [spin]="true" [attr.aria-hidden]="true" />
+                    <span *ngIf="config.loadingIcon || loadingIcon || buttonProps?.loadingIcon" [class]="cn(cx('loadingIcon'), 'pi-spin', config.loadingIcon || loadingIcon || buttonProps?.loadingIcon)" [pBind]="ptm('loadingIcon')" [attr.aria-hidden]="true"></span>
+                    <svg data-p-icon="spinner" *ngIf="!(config.loadingIcon || loadingIcon || buttonProps?.loadingIcon)" [class]="cn(cx('loadingIcon'), cx('spinnerIcon'))" [pBind]="ptm('loadingIcon')" [spin]="true" [attr.aria-hidden]="true" />
                 </ng-container>
                 <ng-template [ngIf]="loadingIconTemplate || _loadingIconTemplate" *ngTemplateOutlet="loadingIconTemplate || _loadingIconTemplate; context: { class: cx('loadingIcon'), pt: ptm('loadingIcon') }"></ng-template>
             </ng-container>
@@ -613,7 +610,7 @@ export class ButtonDirective extends BaseComponent {
             <p-badge
                 *ngIf="!contentTemplate && !_contentTemplate && (badge || buttonProps?.badge)"
                 [value]="badge || buttonProps?.badge"
-                [severity]="badgeSeverity || buttonProps?.badgeSeverity"
+                [severity]="config.badgeSeverity || badgeSeverity || buttonProps?.badgeSeverity"
                 [pt]="ptm('pcBadge')"
                 [unstyled]="unstyled()"
             ></p-badge>
@@ -633,15 +630,32 @@ export class Button extends BaseComponent<ButtonPassThrough> {
 
     _componentStyle = inject(ButtonStyle);
 
+    // adição do input da interface
+    @Input() config: ButtonConfig = {};
+
     onAfterViewChecked(): void {
         this.bindDirectiveInstance.setAttrs(this.ptm('host'));
     }
 
-    /**
-     * Type of the button.
-     * @group Props
-     */
-    @Input() type: string = 'button';
+    // remoção de inputs.
+    type: string = 'button';
+    raised: boolean = false;
+    rounded: boolean = false;
+    text: boolean = false;
+    plain: boolean = false;
+    outlined: boolean = false;
+    link: boolean = false;
+    tabindex: number | undefined;
+    size: 'small' | 'large' | undefined;
+    variant: 'outlined' | 'text' | undefined;
+    style: { [klass: string]: any } | null | undefined;
+    styleClass: string | undefined;
+    badgeClass: string | undefined;
+    badgeSeverity: 'success' | 'info' | 'warn' | 'danger' | 'help' | 'primary' | 'secondary' | 'contrast' | null | undefined = 'secondary';
+    ariaLabel: string | undefined;
+    autofocus: boolean | undefined;
+    iconPos: ButtonIconPosition = 'left';
+    loadingIcon: string | undefined;
 
     /**
      * Value of the badge.
@@ -654,104 +668,6 @@ export class Button extends BaseComponent<ButtonPassThrough> {
      * @group Props
      */
     @Input({ transform: booleanAttribute }) disabled: boolean | undefined;
-
-    /**
-     * Add a shadow to indicate elevation.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) raised: boolean = false;
-
-    /**
-     * Add a circular border radius to the button.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) rounded: boolean = false;
-
-    /**
-     * Add a textual class to the button without a background initially.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) text: boolean = false;
-
-    /**
-     * Add a plain textual class to the button without a background initially.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) plain: boolean = false;
-
-    /**
-     * Add a border class without a background initially.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) outlined: boolean = false;
-
-    /**
-     * Add a link style to the button.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) link: boolean = false;
-
-    /**
-     * Add a tabindex to the button.
-     * @group Props
-     */
-    @Input({ transform: numberAttribute }) tabindex: number | undefined;
-
-    /**
-     * Defines the size of the button.
-     * @group Props
-     */
-    @Input() size: 'small' | 'large' | undefined;
-
-    /**
-     * Specifies the variant of the component.
-     * @group Props
-     */
-    @Input() variant: 'outlined' | 'text' | undefined;
-
-    /**
-     * Inline style of the element.
-     * @group Props
-     */
-    @Input() style: { [klass: string]: any } | null | undefined;
-
-    /**
-     * Class of the element.
-     * @group Props
-     */
-    @Input() styleClass: string | undefined;
-
-    /**
-     * Style class of the badge.
-     * @group Props
-     * @deprecated use badgeSeverity instead.
-     */
-    @Input() badgeClass: string | undefined;
-
-    /**
-     * Severity type of the badge.
-     * @group Props
-     * @defaultValue secondary
-     */
-    @Input() badgeSeverity: 'success' | 'info' | 'warn' | 'danger' | 'help' | 'primary' | 'secondary' | 'contrast' | null | undefined = 'secondary';
-
-    /**
-     * Used to define a string that autocomplete attribute the current element.
-     * @group Props
-     */
-    @Input() ariaLabel: string | undefined;
-
-    /**
-     * When present, it specifies that the component should automatically get focus on load.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) autofocus: boolean | undefined;
-
-    /**
-     * Position of the icon.
-     * @group Props
-     */
-    @Input() iconPos: ButtonIconPosition = 'left';
 
     /**
      * Name of the icon.
@@ -772,16 +688,21 @@ export class Button extends BaseComponent<ButtonPassThrough> {
     @Input({ transform: booleanAttribute }) loading: boolean = false;
 
     /**
-     * Icon to display in loading state.
-     * @group Props
-     */
-    @Input() loadingIcon: string | undefined;
-
-    /**
      * Defines the style of the button.
      * @group Props
      */
-    @Input() severity: ButtonSeverity;
+    // remoção dos inputs getter de severity
+    get severity(): ButtonSeverity {
+        return this._severity || this.config.severity;
+    }
+
+    set severity(value: ButtonSeverity) {
+        this._severity = value;
+
+        if (this.initialized) {
+            this.setStyleClass();
+        }
+    }
 
     /**
      * Used to pass all properties of the ButtonProps to the Button component.
@@ -847,7 +768,7 @@ export class Button extends BaseComponent<ButtonPassThrough> {
     }
 
     get hasIcon() {
-        return this.icon || this.buttonProps?.icon || this.iconTemplate || this._iconTemplate || this.loadingIcon || this.loadingIconTemplate || this._loadingIconTemplate;
+        return this.icon || this.buttonProps?.icon || this.iconTemplate || this._iconTemplate || this.loading || this.loadingIconTemplate || this._loadingIconTemplate || this.config.loadingIcon; // [REFACTOR] Added config.loadingIcon check
     }
 
     _contentTemplate: TemplateRef<void> | undefined;
@@ -878,31 +799,35 @@ export class Button extends BaseComponent<ButtonPassThrough> {
         });
     }
 
+    //atualização de getters para usar propriedades de configuração
     get dataP() {
+        const size = this.config.size || this.size || this.buttonProps?.size;
         return this.cn({
-            [this.size as string]: this.size,
+            [size as string]: size,
             'icon-only': this.hasIcon && !this.label && !this.badge,
             loading: this.loading,
             fluid: this.hasFluid,
-            rounded: this.rounded,
-            raised: this.raised,
-            outlined: this.outlined || this.variant === 'outlined',
-            text: this.text || this.variant === 'text',
-            link: this.link,
-            vertical: (this.iconPos === 'top' || this.iconPos === 'bottom') && this.label
+            rounded: this.config.rounded || this.rounded,
+            raised: this.config.raised || this.raised,
+            outlined: this.config.outlined || this.outlined || this.config.variant === 'outlined' || this.variant === 'outlined',
+            text: this.config.text || this.text || this.config.variant === 'text' || this.variant === 'text',
+            link: this.config.link || this.link,
+            vertical: ((this.config.iconPos || this.iconPos) === 'top' || (this.config.iconPos || this.iconPos) === 'bottom') && this.label
         });
     }
 
     get dataIconP() {
+        const size = this.config.size || this.size || this.buttonProps?.size;
         return this.cn({
-            [this.iconPos]: this.iconPos,
-            [this.size as string]: this.size
+            [this.config.iconPos || this.iconPos]: this.config.iconPos || this.iconPos,
+            [size as string]: size
         });
     }
 
     get dataLabelP() {
+        const size = this.config.size || this.size || this.buttonProps?.size;
         return this.cn({
-            [this.size as string]: this.size,
+            [size as string]: size,
             'icon-only': this.hasIcon && !this.label && !this.badge
         });
     }
