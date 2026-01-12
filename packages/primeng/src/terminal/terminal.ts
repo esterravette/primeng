@@ -1,7 +1,6 @@
-import { CommonModule } from '@angular/common';
-import { AfterViewChecked, AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, HostListener, inject, InjectionToken, Input, NgModule, OnDestroy, ViewChild, ViewEncapsulation } from '@angular/core';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
+import { AfterViewChecked, AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, HostListener, inject, InjectionToken, Input, NgModule, OnDestroy, ViewChild, ViewEncapsulation, Renderer2, PLATFORM_ID } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { find } from '@primeuix/utils';
 import { SharedModule } from 'primeng/api';
 import { BaseComponent, PARENT_INSTANCE } from 'primeng/basecomponent';
 import { Bind } from 'primeng/bind';
@@ -68,11 +67,16 @@ export class Terminal extends BaseComponent<TerminalPassThrough> implements Afte
 
     command!: string;
 
-    container!: Element;
+    // tipagem de container para HTMLElement|null e inicializado como null para segurança contra nulos
+    container: HTMLElement | null = null;
 
     commandProcessed!: boolean;
 
     subscription: Subscription;
+
+    // injeta Renderer2 e PLATFORM_ID para operações seguras no DOM e verificações de plataforma
+    renderer = inject(Renderer2);
+    platformId = inject(PLATFORM_ID);
 
     _componentStyle = inject(TerminalStyle);
 
@@ -80,7 +84,17 @@ export class Terminal extends BaseComponent<TerminalPassThrough> implements Afte
 
     @HostListener('click')
     onHostClick() {
-        this.focus(this.inputRef?.nativeElement);
+        // protege o foco com verificações de plataforma e nulidade para evitar erros em ambientes que não sejam navegadores
+        if (isPlatformBrowser(this.platformId)) {
+            const el = this.inputRef?.nativeElement;
+            if (el && typeof el.focus === 'function') {
+                try {
+                    el.focus();
+                } catch {
+                    // ignore focus failures
+                }
+            }
+        }
     }
 
     constructor(public terminalService: TerminalService) {
@@ -91,15 +105,38 @@ export class Terminal extends BaseComponent<TerminalPassThrough> implements Afte
         });
     }
 
+    // torna o foco seguro contra nulos
+    focus(element?: HTMLElement | null) {
+        if (element && typeof element.focus === 'function') {
+            try {
+                element.focus();
+            } catch {
+                // ignore
+            }
+        }
+    }
+
     onAfterViewInit() {
-        this.container = this.el.nativeElement;
+        // define o elemento host como HTMLElement com segurança contra nulos
+        this.container = (this.el.nativeElement as HTMLElement) ?? null;
     }
 
     onAfterViewChecked() {
         this.bindDirectiveInstance.setAttrs(this.ptms(['host', 'root']));
 
-        if (this.commandProcessed) {
-            this.container.scrollTop = this.container.scrollHeight;
+        if (this.commandProcessed && this.container && isPlatformBrowser(this.platformId)) {
+            // usa renderer.setProperty para atualizar scrollTop com segurança e verificar a plataforma
+            try {
+                this.renderer.setProperty(this.container, 'scrollTop', this.container.scrollHeight);
+            } catch {
+                // fallback to direct assignment if renderer fails
+                try {
+                    this.container.scrollTop = this.container.scrollHeight;
+                } catch {
+                    // ignore
+                }
+            }
+
             this.commandProcessed = false;
         }
     }

@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, ContentChild, ContentChildren, inject, InjectionToken, Input, NgModule, QueryList, signal, TemplateRef, ViewEncapsulation } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ContentChild, ContentChildren, inject, InjectionToken, Input, NgModule, QueryList, signal, TemplateRef, ViewEncapsulation, Renderer2 } from '@angular/core';
 import { equals } from '@primeuix/utils';
 import { BlockableUI, Footer, Header, PrimeTemplate, SharedModule } from 'primeng/api';
 import { BaseComponent, PARENT_INSTANCE } from 'primeng/basecomponent';
@@ -57,6 +57,9 @@ export class Card extends BaseComponent<CardPassThrough> implements BlockableUI 
 
     _componentStyle = inject(CardStyle);
 
+    // usa Renderer2 para atualizações de estilo 
+    renderer = inject(Renderer2);
+
     onAfterViewChecked(): void {
         this.bindDirectiveInstance.setAttrs(this.ptms(['host', 'root']));
     }
@@ -76,12 +79,24 @@ export class Card extends BaseComponent<CardPassThrough> implements BlockableUI 
      */
     @Input() set style(value: { [klass: string]: any } | null | undefined) {
         if (!equals(this._style(), value)) {
+            const prev = this._style();
             this._style.set(value);
-            // Apply style directly to avoid infinite loop in host binding
+
+            // compara estilos anteriores e aplica/remove via Renderer2 para evitar acesso direto ao DOM
             if (this.el?.nativeElement) {
+                // remove estilos que não existem mais
+                if (prev) {
+                    Object.keys(prev).forEach((key) => {
+                        if (!value || !(key in value)) {
+                            this.renderer.removeStyle(this.el.nativeElement, key);
+                        }
+                    });
+                }
+
+                // define estilos novos/atualizados
                 if (value) {
                     Object.keys(value).forEach((key) => {
-                        this.el.nativeElement.style[key] = value[key];
+                        this.renderer.setStyle(this.el.nativeElement, key, value[key]);
                     });
                 }
             }
@@ -90,6 +105,12 @@ export class Card extends BaseComponent<CardPassThrough> implements BlockableUI 
 
     get style() {
         return this._style();
+    }
+
+    getBlockableElement(): HTMLElement {
+        // evita acesso direto a children[]; usa firstElementChild com fallback para o elemento host
+        const first = this.el.nativeElement?.firstElementChild as HTMLElement | null;
+        return first ?? this.el.nativeElement;
     }
     /**
      * Class of the element.
@@ -143,10 +164,6 @@ export class Card extends BaseComponent<CardPassThrough> implements BlockableUI 
     _footerTemplate: TemplateRef<void> | undefined;
 
     _style = signal<{ [klass: string]: any } | null | undefined>(null);
-
-    getBlockableElement(): HTMLElement {
-        return this.el.nativeElement.children[0];
-    }
 
     @ContentChildren(PrimeTemplate) templates: QueryList<PrimeTemplate> | undefined;
 

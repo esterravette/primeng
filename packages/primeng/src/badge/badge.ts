@@ -90,9 +90,11 @@ export class BadgeDirective implements OnChanges, AfterViewInit, OnDestroy {
 
     private id!: string;
 
-    badgeEl: HTMLElement | null = null;
+    badgeEl: HTMLElement | null;
 
     _componentStyle = inject(BadgeStyle);
+
+    // lógica de activeElement removida para usar o host nativo padrão
 
     private get canUpdateBadge(): boolean {
         return isNotEmpty(this.id) && !this.disabled;
@@ -111,13 +113,22 @@ export class BadgeDirective implements OnChanges, AfterViewInit, OnDestroy {
             return;
         }
 
+        // reorganização para evitar buscas repetitivas no DOM
         if (!this.badgeEl) {
             this.renderBadgeContent();
         } else {
-            if (severity) this.updateSeverity(severity.currentValue, severity.previousValue);
-            if (size) this.updateSize();
-            if (value) this.updateValue();
-            if (badgeStyle || badgeStyleClass) this.applyStyles();
+            if (severity) {
+                this.updateSeverity(severity.currentValue, severity.previousValue);
+            }
+            if (size) {
+                this.updateSize();
+            }
+            if (value) {
+                this.updateValue();
+            }
+            if (badgeStyle || badgeStyleClass) {
+                this.applyStyles();
+            }
         }
     }
 
@@ -128,14 +139,15 @@ export class BadgeDirective implements OnChanges, AfterViewInit, OnDestroy {
         }
     }
 
-    ngOnDestroy(): void {}
-
     private updateValue(): void {
         if (!this.badgeEl) return;
 
         if (this.value != null) {
+            // removeClass via Renderer2
             this.renderer.removeClass(this.badgeEl, 'p-badge-dot');
+
             if (this.value && String(this.value).length === 1) {
+                // addClass via Renderer2
                 this.renderer.addClass(this.badgeEl, 'p-badge-circle');
             } else {
                 this.renderer.removeClass(this.badgeEl, 'p-badge-circle');
@@ -145,13 +157,16 @@ export class BadgeDirective implements OnChanges, AfterViewInit, OnDestroy {
             this.renderer.removeClass(this.badgeEl, 'p-badge-circle');
         }
 
+        // manipulação segura de texto
         const badgeValue = this.value != null ? String(this.value) : '';
         this.renderer.setProperty(this.badgeEl, 'textContent', badgeValue);
     }
 
     private updateSize(): void {
         if (!this.badgeEl) return;
+
         const size = this.badgeSize || this.size;
+
         if (size) {
             if (size === 'large') {
                 this.renderer.addClass(this.badgeEl, 'p-badge-lg');
@@ -172,15 +187,24 @@ export class BadgeDirective implements OnChanges, AfterViewInit, OnDestroy {
         this.badgeEl = this.renderer.createElement('span');
         this.renderer.setAttribute(this.badgeEl, 'id', this.id);
 
-        const defaultClasses = ['p-badge', 'p-component'];
-        defaultClasses.forEach((c) => this.renderer.addClass(this.badgeEl, c));
+        // criação de elemento via Renderer2
+        this.badgeEl = this.renderer.createElement('span');
+        this.renderer.setAttribute(this.badgeEl, 'id', this.id);
+
+        // aplica classes iniciais
+        const rootClass = this.cx('root');
+        if (rootClass) {
+            rootClass.split(' ').forEach((c) => this.renderer.addClass(this.badgeEl, c));
+        }
 
         this.updateSeverity(this.severity);
         this.updateSize();
         this.updateValue();
         this.applyStyles();
 
+        // adiciona classe ao host via Renderer2
         this.renderer.addClass(this.el.nativeElement, 'p-overlay-badge');
+        // append via Renderer2
         this.renderer.appendChild(this.el.nativeElement, this.badgeEl);
     }
 
@@ -199,19 +223,28 @@ export class BadgeDirective implements OnChanges, AfterViewInit, OnDestroy {
 
     private updateSeverity(newSeverity: string | null | undefined, oldSeverity?: string | null): void {
         if (!this.badgeEl) return;
-        if (newSeverity) this.renderer.addClass(this.badgeEl, `p-badge-${newSeverity}`);
-        if (oldSeverity) this.renderer.removeClass(this.badgeEl, `p-badge-${oldSeverity}`);
+
+        if (newSeverity) {
+            this.renderer.addClass(this.badgeEl, `p-badge-${newSeverity}`);
+        }
+
+        if (oldSeverity) {
+            this.renderer.removeClass(this.badgeEl, `p-badge-${oldSeverity}`);
+        }
     }
 
     private toggleDisableState(): void {
         if (!this.id) return;
         if (this.disabled) {
             if (this.badgeEl) {
+                // remove child via Renderer2 e limpa referência
                 this.renderer.removeChild(this.el.nativeElement, this.badgeEl);
                 this.badgeEl = null;
             }
         } else {
-            if (!this.badgeEl) this.renderBadgeContent();
+            if (!this.badgeEl) {
+                this.renderBadgeContent();
+            }
         }
     }
 }
