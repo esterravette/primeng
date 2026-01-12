@@ -4,6 +4,13 @@ import { Component, ElementRef, Inject, Input, NgModule, PLATFORM_ID, ViewChild,
 import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
 import { useCodeSandbox, useStackBlitz } from './codeeditor';
+//definição de interface pra agrupar e diminuir os inputs.
+export interface AppCodeConfig {
+    hideToggleCode?: boolean;
+    hideCodeSandbox?: boolean;
+    hideStackBlitz?: boolean;
+    importCode?: boolean;
+}
 
 @Component({
     selector: 'app-code',
@@ -107,13 +114,13 @@ export class AppCode {
 
     @Input() routeFiles: RouteFile[] = [];
 
-    @Input({ transform: booleanAttribute }) hideToggleCode: boolean = false;
-
-    @Input({ transform: booleanAttribute }) hideCodeSandbox: boolean = true;
-
-    @Input({ transform: booleanAttribute }) hideStackBlitz: boolean = false;
-
-    @Input({ transform: booleanAttribute }) importCode: boolean = false;
+    //agrupamento de inputs usando a interface.
+    @Input() config: AppCodeConfig = {
+        hideToggleCode: false,
+        hideCodeSandbox: true,
+        hideStackBlitz: false,
+        importCode: false
+    };
 
     @ViewChild('codeElement') codeElement: ElementRef;
 
@@ -121,10 +128,27 @@ export class AppCode {
 
     lang!: string;
 
+    //metodos getters necessário para evitar não acessar config diretamente no HTML
+    get hideToggleCode() {
+        return this.config.hideToggleCode ?? false;
+    }
+
+    get hideStackBlitz() {
+        return this.config.hideStackBlitz ?? false;
+    }
+
+    get hideCodeSandbox() {
+        return this.config.hideCodeSandbox ?? true;
+    }
+
+    get importCode() {
+        return this.config.importCode ?? false;
+    }
+
     constructor(
         @Inject(PLATFORM_ID) public platformId: any,
         @Inject(DOCUMENT) public document: Document
-    ) {}
+    ) { }
 
     ngAfterViewChecked() {
         if (isPlatformBrowser(this.platformId)) {
@@ -154,10 +178,10 @@ export class AppCode {
     async copyCode() {
         await navigator.clipboard.writeText(this.code[this.lang]);
     }
-
+    // mudança de hideToggleCode pra config.hideToggleCode
     getCode(lang: string = 'basic') {
         if (this.code) {
-            if (this.fullCodeVisible || this.hideToggleCode) {
+            if (this.fullCodeVisible || this.config.hideToggleCode) {
                 return this.code[lang];
             } else {
                 return this.code['basic'];
@@ -169,6 +193,7 @@ export class AppCode {
         this.fullCodeVisible = !this.fullCodeVisible;
         this.fullCodeVisible && (this.code.html ? (this.lang = 'html') : (this.lang = 'typescript'));
         !this.fullCodeVisible && (this.lang = 'basic');
+
     }
 
     openStackBlitz() {
@@ -209,4 +234,4 @@ export class AppCode {
     imports: [AppCode],
     exports: [AppCode]
 })
-export class AppCodeModule {}
+export class AppCodeModule { }

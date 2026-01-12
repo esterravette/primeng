@@ -48,7 +48,7 @@ import {
     resolve,
     uuid
 } from '@primeuix/utils';
-import { MenuItem, OverlayService, PrimeTemplate, SharedModule } from 'primeng/api';
+import { MenuItem, OverlayService, PrimeNGConfig, PrimeTemplate, SharedModule } from 'primeng/api';
 import { BadgeModule } from 'primeng/badge';
 import { BaseComponent, PARENT_INSTANCE } from 'primeng/basecomponent';
 import { BindModule } from 'primeng/bind';
@@ -64,6 +64,36 @@ import { ContextMenuStyle } from './style/contextmenustyle';
 const CONTEXTMENU_INSTANCE = new InjectionToken<ContextMenu>('CONTEXTMENU_INSTANCE');
 const CONTEXTMENUSUB_INSTANCE = new InjectionToken<ContextMenuSub>('CONTEXTMENUSUB_INSTANCE');
 
+// [REFACTOR] Interface to group inputs for ContextMenuSub to avoid TMI
+export interface ContextMenuSubConfig {
+    menuId?: string;
+    ariaLabel?: string;
+    ariaLabelledBy?: string;
+    autoZIndex?: boolean;
+    baseZIndex?: number;
+    popup?: boolean;
+    motionOptions?: MotionOptions[];
+    tabindex?: number;
+}
+
+// [REFACTOR] Interface to group inputs for ContextMenu to avoid TMI
+export interface ContextMenuConfig {
+    triggerEvent?: string;
+    target?: HTMLElement | string | null;
+    global?: boolean;
+    style?: { [klass: string]: any } | null;
+    styleClass?: string;
+    autoZIndex?: boolean;
+    baseZIndex?: number;
+    id?: string;
+    breakpoint?: string;
+    ariaLabel?: string;
+    ariaLabelledBy?: string;
+    pressDelay?: number;
+    appendTo?: HTMLElement | ElementRef | TemplateRef<any> | 'self' | 'body' | null | any;
+    motionOptions?: MotionOptions;
+}
+
 @Component({
     selector: 'p-contextMenuSub, p-contextmenu-sub',
     standalone: true,
@@ -75,10 +105,10 @@ const CONTEXTMENUSUB_INSTANCE = new InjectionToken<ContextMenuSub>('CONTEXTMENUS
                 role="menu"
                 [class]="root ? cx('rootList') : cx('submenu')"
                 [pBind]="_ptm(root ? 'rootList' : 'submenu')"
-                [attr.id]="menuId + '_list'"
-                [tabindex]="tabindex"
-                [attr.aria-label]="ariaLabel"
-                [attr.aria-labelledBy]="ariaLabelledBy"
+                [attr.id]="config.menuId + '_list'"
+                [tabindex]="config.tabindex"
+                [attr.aria-label]="config.ariaLabel"
+                [attr.aria-labelledBy]="config.ariaLabelledBy"
                 [attr.aria-activedescendant]="focusedItemId"
                 [attr.aria-orientation]="'vertical'"
                 (keydown)="menuKeydown.emit($event)"
@@ -87,7 +117,7 @@ const CONTEXTMENUSUB_INSTANCE = new InjectionToken<ContextMenuSub>('CONTEXTMENUS
                 [pMotion]="root ? true : visible"
                 [pMotionAppear]="true"
                 [pMotionName]="'p-anchored-overlay'"
-                [pMotionOptions]="motionOptions"
+                [pMotionOptions]="config.motionOptions"
                 (pMotionOnBeforeEnter)="onBeforeEnter($event)"
                 (pMotionOnAfterLeave)="onAfterLeave()"
             >
@@ -240,7 +270,7 @@ const CONTEXTMENUSUB_INSTANCE = new InjectionToken<ContextMenuSub>('CONTEXTMENUS
                             *ngIf="isItemVisible(processedItem) && isItemGroup(processedItem)"
                             [items]="processedItem.items"
                             [itemTemplate]="itemTemplate"
-                            [menuId]="menuId"
+                            [config]="config"
                             [visible]="isItemActive(processedItem) && isItemGroup(processedItem)"
                             [activeItemPath]="activeItemPath"
                             [focusedItemId]="focusedItemId"
@@ -248,7 +278,6 @@ const CONTEXTMENUSUB_INSTANCE = new InjectionToken<ContextMenuSub>('CONTEXTMENUS
                             (itemClick)="itemClick.emit($event)"
                             (itemMouseEnter)="onItemMouseEnter($event)"
                             [pt]="pt()"
-                            [motionOptions]="motionOptions"
                             [unstyled]="unstyled()"
                         />
                     </li>
@@ -277,27 +306,14 @@ export class ContextMenuSub extends BaseComponent<ContextMenuPassThrough> implem
 
     @Input({ transform: booleanAttribute }) root: boolean | undefined = false;
 
-    @Input({ transform: booleanAttribute }) autoZIndex: boolean = true;
-
-    @Input({ transform: numberAttribute }) baseZIndex: number = 0;
-
-    @Input({ transform: booleanAttribute }) popup: boolean | undefined;
-
-    @Input() menuId: string | undefined;
-
-    @Input() ariaLabel: string | undefined;
-
-    @Input() ariaLabelledBy: string | undefined;
-
-    @Input({ transform: numberAttribute }) level: number = 0;
-
     @Input() focusedItemId: string | undefined;
 
     @Input() activeItemPath: any[];
 
-    @Input() motionOptions: MotionOptions[] | undefined;
+    @Input({ transform: numberAttribute }) level: number = 0;
 
-    @Input({ transform: numberAttribute }) tabindex: number = 0;
+    // [REFACTOR] Config input to replace multiple individual inputs
+    @Input() config: ContextMenuSubConfig = {};
 
     @Output() itemClick: EventEmitter<any> = new EventEmitter();
 
@@ -342,7 +358,7 @@ export class ContextMenuSub extends BaseComponent<ContextMenuPassThrough> implem
     }
 
     getItemId(processedItem: any): string {
-        return processedItem.item && processedItem.item?.id ? processedItem.item.id : `${this.menuId}_${processedItem.key}`;
+        return processedItem.item && processedItem.item?.id ? processedItem.item.id : `${this.config.menuId}_${processedItem.key}`;
     }
 
     getItemKey(processedItem: any): string {
@@ -446,10 +462,10 @@ export class ContextMenuSub extends BaseComponent<ContextMenuPassThrough> implem
         @if (render()) {
             <div
                 #container
-                [attr.id]="id"
-                [class]="cn(cx('root'), styleClass)"
+                [attr.id]="componentId"
+                [class]="cn(cx('root'), config.styleClass)"
                 [style]="sx('root')"
-                [ngStyle]="style"
+                [ngStyle]="config.style"
                 [pBind]="ptm('root')"
                 [pMotion]="visible()"
                 [pMotionName]="'p-anchored-overlay'"
@@ -464,11 +480,14 @@ export class ContextMenuSub extends BaseComponent<ContextMenuPassThrough> implem
                     [root]="true"
                     [items]="processedItems"
                     [itemTemplate]="itemTemplate || _itemTemplate"
-                    [menuId]="id"
-                    [ariaLabel]="ariaLabel"
-                    [ariaLabelledBy]="ariaLabelledBy"
-                    [baseZIndex]="baseZIndex"
-                    [autoZIndex]="autoZIndex"
+                    [config]="{
+                        menuId: componentId,
+                        ariaLabel: config.ariaLabel,
+                        ariaLabelledBy: config.ariaLabelledBy,
+                        baseZIndex: config.baseZIndex,
+                        autoZIndex: config.autoZIndex,
+                        motionOptions: computedMotionOptions()
+                    }"
                     [visible]="submenuVisible()"
                     [focusedItemId]="focused ? focusedItemId : undefined"
                     [activeItemPath]="activeItemPath()"
@@ -479,7 +498,6 @@ export class ContextMenuSub extends BaseComponent<ContextMenuPassThrough> implem
                     (itemMouseEnter)="onItemMouseEnter($event)"
                     [pt]="pt()"
                     [unstyled]="unstyled()"
-                    [motionOptions]="computedMotionOptions()"
                 />
             </div>
         }
@@ -500,82 +518,17 @@ export class ContextMenu extends BaseComponent<ContextMenuPassThrough> {
     get model(): MenuItem[] | undefined {
         return this._model;
     }
-    /**
-     * Event for which the menu must be displayed.
-     * @group Props
-     */
-    @Input() triggerEvent: string = 'contextmenu';
-    /**
-     * Local template variable name of the element to attach the context menu.
-     * @group Props
-     */
-    @Input() target: HTMLElement | string | null | undefined;
-    /**
-     * Attaches the menu to document instead of a particular item.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) global: boolean;
-    /**
-     * Inline style of the component.
-     * @group Props
-     */
-    @Input() style: { [klass: string]: any } | null | undefined;
-    /**
-     * Style class of the component.
-     * @group Props
-     */
-    @Input() styleClass: string | undefined;
-    /**
-     * Whether to automatically manage layering.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) autoZIndex: boolean = true;
-    /**
-     * Base zIndex value to use in layering.
-     * @group Props
-     */
-    @Input({ transform: numberAttribute }) baseZIndex: number = 0;
-    /**
-     * Current id state as a string.
-     * @group Props
-     */
-    @Input() id: string | undefined;
-    /**
-     * The breakpoint to define the maximum width boundary.
-     * @group Props
-     */
-    @Input() breakpoint: string = '960px';
-    /**
-     * Defines a string value that labels an interactive element.
-     * @group Props
-     */
-    @Input() ariaLabel: string | undefined;
-    /**
-     * Identifier of the underlying input element.
-     * @group Props
-     */
-    @Input() ariaLabelledBy: string | undefined;
-    /**
-     * Press delay in touch devices as miliseconds.
-     * @group Props
-     */
-    @Input({ transform: numberAttribute }) pressDelay: number | undefined = 500;
-    /**
-     * Target element to attach the overlay, valid values are "body" or a local ng-template variable of another element (note: use binding with brackets for template variables, e.g. [appendTo]="mydiv" for a div element having #mydiv as variable name).
-     * @defaultValue 'self'
-     * @group Props
-     */
-    appendTo = input<HTMLElement | ElementRef | TemplateRef<any> | 'self' | 'body' | null | undefined | any>(undefined);
-    /**
-     * The motion options.
-     * @group Props
-     */
-    motionOptions = input<MotionOptions | undefined>(undefined);
+
+    // [REFACTOR] New config input to replace multiple individual inputs and solve TMI
+    @Input() config: ContextMenuConfig = {};
+
+    // [REFACTOR] Explicit injection to avoid conflicts if needed
+    _primeConfig = inject(PrimeNGConfig);
 
     computedMotionOptions = computed<MotionOptions>(() => {
         return {
             ...this.ptm('motion'),
-            ...this.motionOptions()
+            ...this.config.motionOptions
         };
     });
     /**
@@ -623,7 +576,7 @@ export class ContextMenu extends BaseComponent<ContextMenuPassThrough> {
 
     submenuVisible = signal<boolean>(false);
 
-    $appendTo = computed(() => this.appendTo() || this.config.overlayAppendTo());
+    $appendTo = computed(() => this.config.appendTo || this._primeConfig.overlayAppendTo());
 
     searchValue: string = '';
 
@@ -645,6 +598,8 @@ export class ContextMenu extends BaseComponent<ContextMenuPassThrough> {
 
     _componentStyle = inject(ContextMenuStyle);
 
+    componentId: string | undefined;
+
     get visibleItems() {
         const processedItem = this.activeItemPath().find((p) => p.key === this.focusedItemInfo().parentKey);
 
@@ -660,7 +615,7 @@ export class ContextMenu extends BaseComponent<ContextMenuPassThrough> {
 
     get focusedItemId() {
         const focusedItem = this.focusedItemInfo();
-        return focusedItem.item && focusedItem.item?.id ? focusedItem.item.id : focusedItem.index !== -1 ? `${this.id}${isNotEmpty(focusedItem.parentKey) ? '_' + focusedItem.parentKey : ''}_${focusedItem.index}` : null;
+        return focusedItem.item && focusedItem.item?.id ? focusedItem.item.id : focusedItem.index !== -1 ? `${this.componentId}${isNotEmpty(focusedItem.parentKey) ? '_' + focusedItem.parentKey : ''}_${focusedItem.index}` : null;
     }
 
     constructor(public overlayService: OverlayService) {
@@ -677,7 +632,7 @@ export class ContextMenu extends BaseComponent<ContextMenuPassThrough> {
     }
 
     onInit() {
-        this.id = this.id || uuid('pn_id_');
+        this.componentId = this.config.id || uuid('pn_id_');
         this.bindMatchMediaListener();
         this.bindTriggerEventListener();
     }
@@ -689,23 +644,24 @@ export class ContextMenu extends BaseComponent<ContextMenuPassThrough> {
     bindTriggerEventListener() {
         if (isPlatformBrowser(this.platformId)) {
             if (!this.triggerEventListener) {
+                const triggerEvent = this.config.triggerEvent || 'contextmenu';
                 if (!this.isMobile()) {
-                    if (this.global) {
-                        this.triggerEventListener = this.renderer.listen(this.document, this.triggerEvent, (event) => {
+                    if (this.config.global) {
+                        this.triggerEventListener = this.renderer.listen(this.document, triggerEvent, (event) => {
                             this.show(event);
                         });
-                    } else if (this.target) {
-                        this.triggerEventListener = this.renderer.listen(this.target, this.triggerEvent, (event) => {
+                    } else if (this.config.target) {
+                        this.triggerEventListener = this.renderer.listen(this.config.target, triggerEvent, (event) => {
                             this.show(event);
                         });
                     }
                 } else {
-                    if (this.global) {
+                    if (this.config.global) {
                         this.triggerEventListener = this.renderer.listen(this.document, 'touchstart', this.onTouchStart.bind(this));
                         this.touchEndListener = this.renderer.listen(this.document, 'touchend', this.onTouchEnd.bind(this));
-                    } else if (this.target) {
-                        this.triggerEventListener = this.renderer.listen(this.target, 'touchstart', this.onTouchStart.bind(this));
-                        this.touchEndListener = this.renderer.listen(this.target, 'touchend', this.onTouchEnd.bind(this));
+                    } else if (this.config.target) {
+                        this.triggerEventListener = this.renderer.listen(this.config.target, 'touchstart', this.onTouchStart.bind(this));
+                        this.touchEndListener = this.renderer.listen(this.config.target, 'touchend', this.onTouchEnd.bind(this));
                     }
                 }
             }
@@ -804,7 +760,8 @@ export class ContextMenu extends BaseComponent<ContextMenuPassThrough> {
     bindMatchMediaListener() {
         if (isPlatformBrowser(this.platformId)) {
             if (!this.matchMediaListener) {
-                const query = window.matchMedia(`(max-width: ${this.breakpoint})`);
+                const breakpoint = this.config.breakpoint || '960px';
+                const query = window.matchMedia(`(max-width: ${breakpoint})`);
 
                 this.query = query;
                 this.queryMatches.set(query.matches);
@@ -1134,8 +1091,10 @@ export class ContextMenu extends BaseComponent<ContextMenuPassThrough> {
     }
 
     moveOnTop() {
-        if (this.autoZIndex && this.container) {
-            ZIndexUtils.set('menu', this.container, this.baseZIndex + this.config.zIndex.menu);
+        const autoZIndex = this.config.autoZIndex !== false;
+        const baseZIndex = this.config.baseZIndex || 0;
+        if (autoZIndex && this.container) {
+            ZIndexUtils.set('menu', this.container, baseZIndex + this._primeConfig.zIndex.menu);
         }
     }
 
@@ -1143,10 +1102,11 @@ export class ContextMenu extends BaseComponent<ContextMenuPassThrough> {
         this.unbindGlobalListeners();
 
         if (!(this.cd as ViewRef).destroyed) {
-            this.target = null;
+            this.config.target = null;
         }
 
-        if (this.container && this.autoZIndex) {
+        const autoZIndex = this.config.autoZIndex !== false;
+        if (this.container && autoZIndex) {
             ZIndexUtils.clear(this.container);
         }
 
@@ -1154,9 +1114,10 @@ export class ContextMenu extends BaseComponent<ContextMenuPassThrough> {
     }
 
     onTouchStart(event: MouseEvent) {
+        const pressDelay = this.config.pressDelay || 500;
         this.pressTimer = setTimeout(() => {
             this.show(event);
-        }, this.pressDelay);
+        }, pressDelay);
     }
 
     onTouchEnd() {
@@ -1312,7 +1273,7 @@ export class ContextMenu extends BaseComponent<ContextMenuPassThrough> {
     }
 
     scrollInView(index: number = -1) {
-        const id = index !== -1 ? `${this.id}_${index}` : this.focusedItemId;
+        const id = index !== -1 ? `${this.componentId}_${index}` : this.focusedItemId;
         const element = findSingle(this.rootmenu?.el?.nativeElement, `li[id="${id}"]`);
 
         if (element) {

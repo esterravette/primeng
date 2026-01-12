@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { AfterViewChecked, booleanAttribute, ChangeDetectionStrategy, Component, computed, ElementRef, EventEmitter, forwardRef, inject, InjectionToken, input, Input, NgModule, Output, TemplateRef, ViewChild, ViewEncapsulation } from '@angular/core';
 import { NG_VALUE_ACCESSOR } from '@angular/forms';
 import { MotionOptions } from '@primeuix/motion';
-import { OverlayOptions, OverlayService, SharedModule, TranslationKeys } from 'primeng/api';
+import { OverlayOptions, OverlayService, PrimeNGConfig, SharedModule, TranslationKeys } from 'primeng/api';
 import { AutoFocusModule } from 'primeng/autofocus';
 import { PARENT_INSTANCE } from 'primeng/basecomponent';
 import { BaseEditableHolder } from 'primeng/baseeditableholder';
@@ -24,6 +24,20 @@ export const COLORPICKER_VALUE_ACCESSOR: any = {
 
 const COLORPICKER_INSTANCE = new InjectionToken<ColorPicker>('COLORPICKER_INSTANCE');
 
+//interface pra agrupar e diminuir os inputs.
+export interface ColorPickerConfig {
+    styleClass?: string;
+    showTransitionOptions?: string;
+    hideTransitionOptions?: string;
+    inline?: boolean;
+    format?: 'hex' | 'rgb' | 'hsb';
+    tabindex?: string;
+    inputId?: string;
+    autoZIndex?: boolean;
+    autofocus?: boolean;
+    defaultColor?: string;
+}
+
 /**
  * ColorPicker groups a collection of contents in tabs.
  * @group Components
@@ -35,20 +49,20 @@ const COLORPICKER_INSTANCE = new InjectionToken<ColorPicker>('COLORPICKER_INSTAN
     hostDirectives: [Bind],
     template: `
         <input
-            *ngIf="!inline"
+            *ngIf="!config.inline"
             #input
             type="text"
             [class]="cx('preview')"
             readonly
-            [attr.tabindex]="tabindex"
+            [attr.tabindex]="config.tabindex"
             [attr.disabled]="$disabled() ? '' : undefined"
             (click)="onInputClick()"
             (keydown)="onInputKeydown($event)"
             (focus)="onInputFocus()"
-            [attr.id]="inputId"
+            [attr.id]="config.inputId"
             [style.backgroundColor]="inputBgColor"
             [attr.aria-label]="ariaLabel"
-            [pAutoFocus]="autofocus"
+            [pAutoFocus]="config.autofocus"
             [pBind]="ptm('preview')"
         />
 
@@ -58,7 +72,7 @@ const COLORPICKER_INSTANCE = new InjectionToken<ColorPicker>('COLORPICKER_INSTAN
             [(visible)]="overlayVisible"
             [options]="overlayOptions()"
             [target]="'@parent'"
-            [inline]="inline"
+            [inline]="config.inline"
             [appendTo]="$appendTo()"
             [unstyled]="unstyled()"
             [pt]="ptm('pcOverlay')"
@@ -87,7 +101,7 @@ const COLORPICKER_INSTANCE = new InjectionToken<ColorPicker>('COLORPICKER_INSTAN
     changeDetection: ChangeDetectionStrategy.OnPush,
     encapsulation: ViewEncapsulation.None,
     host: {
-        '[class]': "cn(cx('root'), styleClass)"
+        '[class]': "cn(cx('root'), config.styleClass)"
     }
 })
 export class ColorPicker extends BaseEditableHolder<ColorPickerPassThrough> implements AfterViewChecked {
@@ -95,63 +109,18 @@ export class ColorPicker extends BaseEditableHolder<ColorPickerPassThrough> impl
 
     bindDirectiveInstance = inject(Bind, { self: true });
 
+    //agrupamento de inputs usando a interface.
+    @Input() config: ColorPickerConfig = {};
+
+    //injeção explicita para evitar conflito com o input config
+    _primeConfig = inject(PrimeNGConfig);
+
     onAfterViewChecked(): void {
         this.bindDirectiveInstance.setAttrs(this.ptms(['host', 'root']));
     }
 
-    /**
-     * Style class of the component.
-     * @deprecated since v20.0.0, use `class` instead.
-     * @group Props
-     */
-    @Input() styleClass: string | undefined;
-    /**
-     * Transition options of the show animation.
-     * @group Props
-     * @deprecated since v21.0.0, use `motionOptions` instead.
-     */
-    @Input() showTransitionOptions: string = '.12s cubic-bezier(0, 0, 0.2, 1)';
-    /**
-     * Transition options of the hide animation.
-     * @group Props
-     * @deprecated since v21.0.0, use `motionOptions` instead.
-     */
-    @Input() hideTransitionOptions: string = '.1s linear';
-    /**
-     * Whether to display as an overlay or not.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) inline: boolean | undefined;
-    /**
-     * Format to use in value binding.
-     * @group Props
-     */
-    @Input() format: 'hex' | 'rgb' | 'hsb' = 'hex';
-    /**
-     * Index of the element in tabbing order.
-     * @group Props
-     */
-    @Input() tabindex: string | undefined;
-    /**
-     * Identifier of the focus input to match a label defined for the dropdown.
-     * @group Props
-     */
-    @Input() inputId: string | undefined;
-    /**
-     * Whether to automatically manage layering.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) autoZIndex: boolean = true;
-    /**
-     * When present, it specifies that the component should automatically get focus on load.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) autofocus: boolean | undefined;
-    /**
-     * Default color to display initially when model value is not present.
-     * @group Props
-     */
-    @Input() defaultColor: string | undefined = 'ff0000';
+    // inputs removidos.
+
     /**
      * Target element to attach the overlay, valid values are "body" or a local ng-template variable of another element (note: use binding with brackets for template variables, e.g. [appendTo]="mydiv" for a div element having #mydiv as variable name).
      * @defaultValue 'self'
@@ -189,7 +158,8 @@ export class ColorPicker extends BaseEditableHolder<ColorPickerPassThrough> impl
 
     @ViewChild('overlay') overlayViewChild!: ElementRef<HTMLDivElement>;
 
-    $appendTo = computed(() => this.appendTo() || this.config.overlayAppendTo());
+    //atualizado para usar _primeConfig
+    $appendTo = computed(() => this.appendTo() || this._primeConfig.overlayAppendTo());
 
     value: any = { h: 0, s: 100, b: 100 };
 
@@ -243,8 +213,9 @@ export class ColorPicker extends BaseEditableHolder<ColorPickerPassThrough> impl
         this.hueHandleViewChild = element;
     }
 
+    //atualizado para usar _primeConfig
     get ariaLabel() {
-        return this.config?.getTranslation(TranslationKeys.ARIA)[TranslationKeys.SELECT_COLOR];
+        return this._primeConfig?.getTranslation(TranslationKeys.ARIA)[TranslationKeys.SELECT_COLOR];
     }
 
     onHueMousedown(event: MouseEvent) {
@@ -346,7 +317,9 @@ export class ColorPicker extends BaseEditableHolder<ColorPickerPassThrough> impl
 
     getValueToUpdate() {
         let val: any;
-        switch (this.format) {
+        //acesso via config
+        const format = this.config.format || 'hex';
+        switch (format) {
             case 'hex':
                 val = '#' + this.HSBtoHEX(this.value);
                 break;
@@ -399,7 +372,7 @@ export class ColorPicker extends BaseEditableHolder<ColorPickerPassThrough> impl
     }
 
     onOverlayBeforeEnter() {
-        if (!this.inline) {
+        if (!this.config.inline) {
             this.updateColorSelector();
             this.updateUI();
             this.onShow.emit({});
@@ -407,7 +380,7 @@ export class ColorPicker extends BaseEditableHolder<ColorPickerPassThrough> impl
     }
 
     onOverlayAfterLeave() {
-        if (!this.inline) {
+        if (!this.config.inline) {
             this.onHide.emit({});
         }
     }
@@ -636,7 +609,7 @@ export class ColorPicker extends BaseEditableHolder<ColorPickerPassThrough> impl
     }
 
     onAfterViewInit() {
-        if (this.inline) {
+        if (this.config.inline) {
             this.updateColorSelector();
             this.updateUI();
         }
@@ -649,8 +622,9 @@ export class ColorPicker extends BaseEditableHolder<ColorPickerPassThrough> impl
      * Writes the value to the control.
      */
     writeControlValue(value: any): void {
+        const format = this.config.format || 'hex';
         if (value) {
-            switch (this.format) {
+            switch (format) {
                 case 'hex':
                     this.value = this.HEXtoHSB(value);
                     break;
@@ -664,7 +638,8 @@ export class ColorPicker extends BaseEditableHolder<ColorPickerPassThrough> impl
                     break;
             }
         } else {
-            this.value = this.HEXtoHSB(this.defaultColor as string);
+            const defaultColor = this.config.defaultColor || 'ff0000';
+            this.value = this.HEXtoHSB(defaultColor);
         }
 
         this.updateColorSelector();
@@ -678,7 +653,9 @@ export class ColorPicker extends BaseEditableHolder<ColorPickerPassThrough> impl
             this.scrollHandler = null;
         }
 
-        if (this.overlayViewChild?.nativeElement && this.autoZIndex) {
+        //autoZIndex default = true
+        const autoZIndex = this.config.autoZIndex !== false;
+        if (this.overlayViewChild?.nativeElement && autoZIndex) {
             ZIndexUtils.clear(this.overlayViewChild?.nativeElement);
         }
     }

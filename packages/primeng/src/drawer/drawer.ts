@@ -22,7 +22,7 @@ import {
 } from '@angular/core';
 import { MotionEvent, MotionOptions } from '@primeuix/motion';
 import { addClass, appendChild, removeClass, setAttribute } from '@primeuix/utils';
-import { PrimeTemplate, SharedModule } from 'primeng/api';
+import { PrimeNGConfig, PrimeTemplate, SharedModule } from 'primeng/api';
 import { BaseComponent, PARENT_INSTANCE } from 'primeng/basecomponent';
 import { Bind } from 'primeng/bind';
 import { Button, ButtonProps } from 'primeng/button';
@@ -36,6 +36,29 @@ import { ZIndexUtils } from 'primeng/utils';
 import { DrawerStyle } from './style/drawerstyle';
 
 const DRAWER_INSTANCE = new InjectionToken<Drawer>('DRAWER_INSTANCE');
+
+// [REFACTOR] Interface para agrupar inputs e reduzir TMI
+export interface DrawerConfig {
+    appendTo?: HTMLElement | ElementRef | TemplateRef<any> | 'self' | 'body' | null | undefined | any;
+    motionOptions?: MotionOptions;
+    blockScroll?: boolean;
+    style?: { [klass: string]: any } | null;
+    styleClass?: string;
+    ariaCloseLabel?: string;
+    autoZIndex?: boolean;
+    baseZIndex?: number;
+    modal?: boolean;
+    closeButtonProps?: ButtonProps;
+    dismissible?: boolean;
+    showCloseIcon?: boolean; // deprecated
+    closeOnEscape?: boolean;
+    transitionOptions?: string; // deprecated
+    position?: 'left' | 'right' | 'bottom' | 'top' | 'full';
+    fullScreen?: boolean;
+    header?: string;
+    maskStyle?: { [klass: string]: any } | null;
+    closable?: boolean;
+}
 
 /**
  * Sidebar is a panel component displayed as an overlay at the edges of the screen.
@@ -59,8 +82,8 @@ const DRAWER_INSTANCE = new InjectionToken<Drawer>('DRAWER_INSTANCE');
                 [pMotionOptions]="computedMotionOptions()"
                 (pMotionOnBeforeEnter)="onBeforeEnter($event)"
                 (pMotionOnAfterLeave)="onAfterLeave($event)"
-                [class]="cn(cx('root'), styleClass)"
-                [style]="style"
+                [class]="cn(cx('root'), config.styleClass)"
+                [style]="config.style"
                 role="complementary"
                 (keydown)="onKeyDown($event)"
                 pFocusTrap
@@ -72,7 +95,7 @@ const DRAWER_INSTANCE = new InjectionToken<Drawer>('DRAWER_INSTANCE');
                 } @else {
                     <div [pBind]="ptm('header')" [ngClass]="cx('header')" [attr.data-pc-section]="'header'">
                         <ng-container *ngTemplateOutlet="headerTemplate || _headerTemplate"></ng-container>
-                        <div *ngIf="header" [pBind]="ptm('title')" [class]="cx('title')">{{ header }}</div>
+                        <div *ngIf="config.header" [pBind]="ptm('title')" [class]="cx('title')">{{ config.header }}</div>
                         <p-button
                             *ngIf="showCloseIcon && closable"
                             [pt]="ptm('pcCloseButton')"
@@ -80,7 +103,7 @@ const DRAWER_INSTANCE = new InjectionToken<Drawer>('DRAWER_INSTANCE');
                             (onClick)="close($event)"
                             (keydown.enter)="close($event)"
                             [buttonProps]="closeButtonProps"
-                            [ariaLabel]="ariaCloseLabel"
+                            [ariaLabel]="config.ariaCloseLabel"
                             [attr.data-pc-group-section]="'iconcontainer'"
                             [unstyled]="unstyled()"
                         >
@@ -113,89 +136,44 @@ export class Drawer extends BaseComponent<DrawerPassThrough> {
 
     bindDirectiveInstance = inject(Bind, { self: true });
 
+    // [REFACTOR] Explicit injection
+    _primeConfig = inject(PrimeNGConfig);
+
+    // [REFACTOR] Config input to group properties
+    @Input() config: DrawerConfig = {};
+
     onAfterViewChecked(): void {
         this.bindDirectiveInstance.setAttrs(this.ptm('host'));
     }
-    /**
-     * Target element to attach the overlay, valid values are "body" or a local ng-template variable of another element (note: use binding with brackets for template variables, e.g. [appendTo]="mydiv" for a div element having #mydiv as variable name).
-     * @defaultValue 'self'
-     * @group Props
-     */
-    appendTo = input<HTMLElement | ElementRef | TemplateRef<any> | 'self' | 'body' | null | undefined | any>(undefined);
-    /**
-     * The motion options.
-     * @group Props
-     */
-    motionOptions = input<MotionOptions | undefined>(undefined);
+
+    // [REFACTOR] Removed individual inputs (appendTo, motionOptions, blockScroll, style, styleClass, etc.)
+    // Created getters for properties with default values or logic
+
+    get appendTo() { return this.config.appendTo; }
+    get position() { return this.config.position || 'left'; }
+    get fullScreen() { return this.config.fullScreen === true; }
+    get modal() { return this.config.modal !== false; } // default true
+    get closeOnEscape() { return this.config.closeOnEscape !== false; } // default true
+    get dismissible() { return this.config.dismissible !== false; } // default true
+    get closable() { return this.config.closable !== false; } // default true
+    get showCloseIcon() { return this.config.showCloseIcon !== false; } // default true
+    get blockScroll() { return this.config.blockScroll === true; }
+    get autoZIndex() { return this.config.autoZIndex !== false; } // default true
+    get baseZIndex() { return this.config.baseZIndex || 0; }
+    
+    get closeButtonProps() { 
+        return this.config.closeButtonProps || { severity: 'secondary', text: true, rounded: true }; 
+    }
+
+    $appendTo = computed(() => this.appendTo || this._primeConfig.overlayAppendTo());
 
     computedMotionOptions = computed<MotionOptions>(() => {
         return {
             ...this.ptm('motion'),
-            ...this.motionOptions()
+            ...this.config.motionOptions
         };
     });
-    /**
-     * Whether to block scrolling of the document when drawer is active.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) blockScroll: boolean = false;
-    /**
-     * Inline style of the component.
-     * @group Props
-     */
-    @Input() style: { [klass: string]: any } | null | undefined;
-    /**
-     * Style class of the component.
-     * @group Props
-     */
-    @Input() styleClass: string | undefined;
-    /**
-     * Aria label of the close icon.
-     * @group Props
-     */
-    @Input() ariaCloseLabel: string | undefined;
-    /**
-     * Whether to automatically manage layering.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) autoZIndex: boolean = true;
-    /**
-     * Base zIndex value to use in layering.
-     * @group Props
-     */
-    @Input({ transform: numberAttribute }) baseZIndex: number = 0;
-    /**
-     * Whether an overlay mask is displayed behind the drawer.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) modal: boolean = true;
-    /**
-     * Used to pass all properties of the ButtonProps to the Button component.
-     * @group Props
-     */
-    @Input() closeButtonProps: ButtonProps = { severity: 'secondary', text: true, rounded: true };
-    /**
-     * Whether to dismiss drawer on click of the mask.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) dismissible: boolean = true;
-    /**
-     * Whether to display the close icon.
-     * @group Props
-     * @deprecated use 'closable' instead.
-     */
-    @Input({ transform: booleanAttribute }) showCloseIcon: boolean = true;
-    /**
-     * Specifies if pressing escape key should hide the drawer.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) closeOnEscape: boolean = true;
-    /**
-     * Transition options of the animation.
-     * @group Props
-     * @deprecated since v21.0.0. Use `motionOptions` instead.
-     */
-    @Input() transitionOptions: string = '150ms cubic-bezier(0, 0, 0.2, 1)';
+
     /**
      * The visible property is an input that determines the visibility of the component.
      * @defaultValue false
@@ -212,39 +190,11 @@ export class Drawer extends BaseComponent<DrawerPassThrough> {
         }
     }
 
-    /**
-     * Specifies the position of the drawer, valid values are "left", "right", "bottom" and "top".
-     * @defaultValue 'left'
-     * @group Props
-     */
-    position = input<'left' | 'right' | 'bottom' | 'top' | 'full'>('left');
-    /**
-     * Adds a close icon to the header to hide the dialog.
-     * @defaultValue false
-     * @group Props
-     */
-    fullScreen = input<boolean>(false);
+    // [REFACTOR] Animation computed properties updated to use config getters
+    $enterAnimation = computed(() => (this.fullScreen ? 'p-drawer-enter-full' : `p-drawer-enter-${this.position}`));
 
-    $enterAnimation = computed(() => (this.fullScreen() ? 'p-drawer-enter-full' : `p-drawer-enter-${this.position()}`));
+    $leaveAnimation = computed(() => (this.fullScreen ? 'p-drawer-leave-full' : `p-drawer-leave-${this.position}`));
 
-    $leaveAnimation = computed(() => (this.fullScreen() ? 'p-drawer-leave-full' : `p-drawer-leave-${this.position()}`));
-
-    /**
-     * Title content of the dialog.
-     * @group Props
-     */
-    @Input() header: string | undefined;
-    /**
-     * Style of the mask.
-     * @group Props
-     */
-    @Input() maskStyle: { [klass: string]: any } | null | undefined;
-    /**
-     * Whether to display close button.
-     * @group Props
-     * @defaultValue true
-     */
-    @Input({ transform: booleanAttribute }) closable: boolean = true;
     /**
      * Callback to invoke when dialog is shown.
      * @group Emits
@@ -269,10 +219,6 @@ export class Drawer extends BaseComponent<DrawerPassThrough> {
     initialized: boolean | undefined;
 
     _visible: boolean | undefined;
-
-    _position: string = 'left';
-
-    _fullScreen: boolean = false;
 
     modalVisible: boolean = false;
 
@@ -316,8 +262,6 @@ export class Drawer extends BaseComponent<DrawerPassThrough> {
      * @group Templates
      */
     @ContentChild('headless', { descendants: false }) headlessTemplate: TemplateRef<void> | undefined;
-
-    $appendTo = computed(() => this.appendTo() || this.config.overlayAppendTo());
 
     _headerTemplate: TemplateRef<void> | undefined;
 
@@ -367,7 +311,7 @@ export class Drawer extends BaseComponent<DrawerPassThrough> {
         this.container?.setAttribute(this.$attrSelector, '');
 
         if (this.autoZIndex) {
-            ZIndexUtils.set('modal', this.container, this.baseZIndex || this.config.zIndex.modal);
+            ZIndexUtils.set('modal', this.container, this.baseZIndex || this._primeConfig.zIndex.modal);
         }
 
         if (this.modal) {
@@ -425,8 +369,8 @@ export class Drawer extends BaseComponent<DrawerPassThrough> {
     }
 
     getMaskStyle() {
-        return this.maskStyle
-            ? Object.entries(this.maskStyle)
+        return this.config.maskStyle
+            ? Object.entries(this.config.maskStyle)
                   .map(([key, value]) => `${key}: ${value}`)
                   .join('; ')
             : '';
@@ -543,8 +487,8 @@ export class Drawer extends BaseComponent<DrawerPassThrough> {
 
     get dataP() {
         return this.cn({
-            'full-screen': this.position() === 'full',
-            [this.position()]: this.position(),
+            'full-screen': this.position === 'full',
+            [this.position]: this.position,
             open: this.visible,
             modal: this.modal
         });

@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { booleanAttribute, ChangeDetectionStrategy, Component, ContentChild, ElementRef, EventEmitter, inject, InjectionToken, Input, NgModule, numberAttribute, Output, SimpleChanges, TemplateRef, ViewEncapsulation } from '@angular/core';
 import { resolveFieldData } from '@primeuix/utils';
-import { BlockableUI, FilterService, Footer, Header, SharedModule, TranslationKeys } from 'primeng/api';
+import { BlockableUI, FilterService, Footer, Header, PrimeNGConfig, SharedModule, TranslationKeys } from 'primeng/api';
 import { BaseComponent, PARENT_INSTANCE } from 'primeng/basecomponent';
 import { Bind } from 'primeng/bind';
 import { SpinnerIcon } from 'primeng/icons';
@@ -25,6 +25,33 @@ import { DataViewStyle } from './style/dataviewstyle';
 
 const DATAVIEW_INSTANCE = new InjectionToken<DataView>('DATAVIEW_INSTANCE');
 
+// [REFACTOR] Interface para agrupar configurações e reduzir TMI
+export interface DataViewConfig {
+    paginator?: boolean;
+    pageLinks?: number;
+    rowsPerPageOptions?: number[] | any[];
+    paginatorPosition?: 'top' | 'bottom' | 'both';
+    paginatorStyleClass?: string;
+    alwaysShowPaginator?: boolean;
+    paginatorDropdownAppendTo?: HTMLElement | ElementRef | TemplateRef<any> | string | null | any;
+    paginatorDropdownScrollHeight?: string;
+    currentPageReportTemplate?: string;
+    showCurrentPageReport?: boolean;
+    showJumpToPageDropdown?: boolean;
+    showFirstLastIcon?: boolean;
+    showPageLinks?: boolean;
+    lazy?: boolean;
+    lazyLoadOnInit?: boolean;
+    emptyMessage?: string;
+    styleClass?: string;
+    gridStyleClass?: string;
+    trackBy?: Function;
+    filterBy?: string;
+    filterLocale?: string;
+    loadingIcon?: string;
+    layout?: 'list' | 'grid';
+}
+
 /**
  * DataView displays data in grid or list layout with pagination and sorting features.
  * @group Components
@@ -37,8 +64,8 @@ const DATAVIEW_INSTANCE = new InjectionToken<DataView>('DATAVIEW_INSTANCE');
         @if (loading) {
             <div [pBind]="ptm('loading')" [class]="cx('loading')">
                 <div [pBind]="ptm('loadingOverlay')" [class]="cx('loadingOverlay')">
-                    @if (loadingIcon) {
-                        <i [class]="cn(cx('loadingIcon'), 'pi-spin' + loadingIcon)"></i>
+                    @if (config.loadingIcon) {
+                        <i [class]="cn(cx('loadingIcon'), 'pi-spin' + config.loadingIcon)"></i>
                     } @else {
                         <ng-container>
                             <svg [pBind]="ptm('loadingIcon')" data-p-icon="spinner" [spin]="true" [class]="cx('loadingIcon')" />
@@ -54,7 +81,7 @@ const DATAVIEW_INSTANCE = new InjectionToken<DataView>('DATAVIEW_INSTANCE');
                 <ng-container *ngTemplateOutlet="headerTemplate"></ng-container>
             </div>
         }
-        @if (paginator && (paginatorPosition === 'top' || paginatorPosition == 'both')) {
+        @if (config.paginator && (paginatorPosition === 'top' || paginatorPosition == 'both')) {
             <p-paginator
                 [rows]="rows"
                 [first]="first"
@@ -62,18 +89,18 @@ const DATAVIEW_INSTANCE = new InjectionToken<DataView>('DATAVIEW_INSTANCE');
                 [pageLinkSize]="pageLinks"
                 [alwaysShow]="alwaysShowPaginator"
                 (onPageChange)="paginate($event)"
-                [rowsPerPageOptions]="rowsPerPageOptions"
-                [appendTo]="paginatorDropdownAppendTo"
+                [rowsPerPageOptions]="config.rowsPerPageOptions"
+                [appendTo]="config.paginatorDropdownAppendTo"
                 [dropdownScrollHeight]="paginatorDropdownScrollHeight"
                 [templateLeft]="paginatorleft"
                 [templateRight]="paginatorright"
                 [currentPageReportTemplate]="currentPageReportTemplate"
                 [showFirstLastIcon]="showFirstLastIcon"
                 [dropdownItemTemplate]="paginatordropdownitem"
-                [showCurrentPageReport]="showCurrentPageReport"
-                [showJumpToPageDropdown]="showJumpToPageDropdown"
+                [showCurrentPageReport]="config.showCurrentPageReport"
+                [showJumpToPageDropdown]="config.showJumpToPageDropdown"
                 [showPageLinks]="showPageLinks"
-                [styleClass]="cn(cx('pcPaginator', { position: 'top' }), paginatorStyleClass)"
+                [styleClass]="cn(cx('pcPaginator', { position: 'top' }), config.paginatorStyleClass)"
                 [pt]="ptm('pcPaginator')"
                 [unstyled]="unstyled()"
             ></p-paginator>
@@ -84,7 +111,7 @@ const DATAVIEW_INSTANCE = new InjectionToken<DataView>('DATAVIEW_INSTANCE');
                     *ngTemplateOutlet="
                         listTemplate;
                         context: {
-                            $implicit: paginator ? (filteredValue || value | slice: (lazy ? 0 : first) : (lazy ? 0 : first) + rows) : filteredValue || value
+                            $implicit: config.paginator ? (filteredValue || value | slice: (config.lazy ? 0 : first) : (config.lazy ? 0 : first) + rows) : filteredValue || value
                         }
                     "
                 ></ng-container>
@@ -94,7 +121,7 @@ const DATAVIEW_INSTANCE = new InjectionToken<DataView>('DATAVIEW_INSTANCE');
                     *ngTemplateOutlet="
                         gridTemplate;
                         context: {
-                            $implicit: paginator ? (filteredValue || value | slice: (lazy ? 0 : first) : (lazy ? 0 : first) + rows) : filteredValue || value
+                            $implicit: config.paginator ? (filteredValue || value | slice: (config.lazy ? 0 : first) : (config.lazy ? 0 : first) + rows) : filteredValue || value
                         }
                     "
                 ></ng-container>
@@ -108,7 +135,7 @@ const DATAVIEW_INSTANCE = new InjectionToken<DataView>('DATAVIEW_INSTANCE');
                 </div>
             }
         </div>
-        @if (paginator && (paginatorPosition === 'bottom' || paginatorPosition == 'both')) {
+        @if (config.paginator && (paginatorPosition === 'bottom' || paginatorPosition == 'both')) {
             <p-paginator
                 [rows]="rows"
                 [first]="first"
@@ -116,18 +143,18 @@ const DATAVIEW_INSTANCE = new InjectionToken<DataView>('DATAVIEW_INSTANCE');
                 [pageLinkSize]="pageLinks"
                 [alwaysShow]="alwaysShowPaginator"
                 (onPageChange)="paginate($event)"
-                [rowsPerPageOptions]="rowsPerPageOptions"
-                [appendTo]="paginatorDropdownAppendTo"
+                [rowsPerPageOptions]="config.rowsPerPageOptions"
+                [appendTo]="config.paginatorDropdownAppendTo"
                 [dropdownScrollHeight]="paginatorDropdownScrollHeight"
                 [templateLeft]="paginatorleft"
                 [templateRight]="paginatorright"
                 [currentPageReportTemplate]="currentPageReportTemplate"
                 [showFirstLastIcon]="showFirstLastIcon"
                 [dropdownItemTemplate]="paginatordropdownitem"
-                [showCurrentPageReport]="showCurrentPageReport"
-                [showJumpToPageDropdown]="showJumpToPageDropdown"
+                [showCurrentPageReport]="config.showCurrentPageReport"
+                [showJumpToPageDropdown]="config.showJumpToPageDropdown"
                 [showPageLinks]="showPageLinks"
-                [styleClass]="cn(cx('pcPaginator', { position: 'bottom' }), paginatorStyleClass)"
+                [styleClass]="cn(cx('pcPaginator', { position: 'bottom' }), config.paginatorStyleClass)"
                 [pt]="ptm('pcPaginator')"
                 [unstyled]="unstyled()"
             ></p-paginator>
@@ -143,7 +170,7 @@ const DATAVIEW_INSTANCE = new InjectionToken<DataView>('DATAVIEW_INSTANCE');
     encapsulation: ViewEncapsulation.None,
     providers: [DataViewStyle, { provide: DATAVIEW_INSTANCE, useExisting: DataView }, { provide: PARENT_INSTANCE, useExisting: DataView }],
     host: {
-        '[class]': "cn(cx('root'), styleClass)"
+        '[class]': "cn(cx('root'), config.styleClass)"
     },
     hostDirectives: [Bind]
 })
@@ -152,15 +179,31 @@ export class DataView extends BaseComponent<DataViewPassThrough> implements Bloc
 
     $pcDataView: DataView | undefined = inject(DATAVIEW_INSTANCE, { optional: true, skipSelf: true }) ?? undefined;
 
+    // [REFACTOR] Injeção explicita do serviço de configuração
+    _primeConfig = inject(PrimeNGConfig);
+
+    // [REFACTOR] Input unificado para resolver TMI
+    @Input() config: DataViewConfig = {};
+
     onAfterViewChecked(): void {
         this.bindDirectiveInstance.setAttrs(this.ptms(['host', 'root']));
     }
 
-    /**
-     * When specified as true, enables the pagination.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) paginator: boolean | undefined;
+    // [REFACTOR] Getters para propriedades que têm valores padrão ou precisam de acesso fácil no template
+    
+    get pageLinks(): number { return this.config.pageLinks ?? 5; }
+    get paginatorPosition() { return this.config.paginatorPosition || 'bottom'; }
+    get alwaysShowPaginator(): boolean { return this.config.alwaysShowPaginator !== false; } // default true
+    get paginatorDropdownScrollHeight(): string { return this.config.paginatorDropdownScrollHeight || '200px'; }
+    get currentPageReportTemplate(): string { return this.config.currentPageReportTemplate || '{currentPage} of {totalPages}'; }
+    get showFirstLastIcon(): boolean { return this.config.showFirstLastIcon !== false; } // default true
+    get showPageLinks(): boolean { return this.config.showPageLinks !== false; } // default true
+    get lazyLoadOnInit(): boolean { return this.config.lazyLoadOnInit !== false; } // default true
+    get emptyMessage(): string { return this.config.emptyMessage || ''; }
+    get gridStyleClass(): string { return this.config.gridStyleClass || ''; }
+    get trackBy(): Function { return this.config.trackBy || ((index: number, item: any) => item); }
+    get layout() { return this.config.layout || 'list'; }
+
     /**
      * Number of rows to display per page.
      * @group Props
@@ -171,117 +214,13 @@ export class DataView extends BaseComponent<DataViewPassThrough> implements Bloc
      * @group Props
      */
     @Input({ transform: numberAttribute }) totalRecords: number | undefined;
-    /**
-     * Number of page links to display in paginator.
-     * @group Props
-     */
-    @Input({ transform: numberAttribute }) pageLinks: number = 5;
-    /**
-     * Array of integer/object values to display inside rows per page dropdown of paginator
-     * @group Props
-     */
-    @Input() rowsPerPageOptions: number[] | any[] | undefined;
-    /**
-     * Position of the paginator.
-     * @group Props
-     */
-    @Input() paginatorPosition: 'top' | 'bottom' | 'both' = 'bottom';
-    /**
-     * Custom style class for paginator
-     * @group Props
-     */
-    @Input() paginatorStyleClass: string | undefined;
-    /**
-     * Whether to show it even there is only one page.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) alwaysShowPaginator: boolean = true;
-    /**
-     * Target element to attach the paginator dropdown overlay, valid values are "body" or a local ng-template variable of another element (note: use binding with brackets for template variables, e.g. [appendTo]="mydiv" for a div element having #mydiv as variable name).
-     * @group Props
-     */
-    @Input() paginatorDropdownAppendTo: HTMLElement | ElementRef | TemplateRef<any> | string | null | undefined | any;
-    /**
-     * Paginator dropdown height of the viewport in pixels, a scrollbar is defined if height of list exceeds this value.
-     * @group Props
-     */
-    @Input() paginatorDropdownScrollHeight: string = '200px';
-    /**
-     * Template of the current page report element. Available placeholders are {currentPage},{totalPages},{rows},{first},{last} and {totalRecords}
-     * @group Props
-     */
-    @Input() currentPageReportTemplate: string = '{currentPage} of {totalPages}';
-    /**
-     * Whether to display current page report.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) showCurrentPageReport: boolean | undefined;
-    /**
-     * Whether to display a dropdown to navigate to any page.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) showJumpToPageDropdown: boolean | undefined;
-    /**
-     * When enabled, icons are displayed on paginator to go first and last page.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) showFirstLastIcon: boolean = true;
-    /**
-     * Whether to show page links.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) showPageLinks: boolean = true;
-    /**
-     * Defines if data is loaded and interacted with in lazy manner.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) lazy: boolean | undefined;
-    /**
-     * Whether to call lazy loading on initialization.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) lazyLoadOnInit: boolean = true;
-    /**
-     * Text to display when there is no data. Defaults to global value in i18n translation configuration.
-     * @group Props
-     */
-    @Input() emptyMessage: string = '';
-    /**
-     * Style class of the component.
-     * @deprecated since v20.0.0, use `class` instead.
-     * @group Props
-     */
-    @Input() styleClass: string | undefined;
-    /**
-     * Style class of the grid.
-     * @group Props
-     */
-    @Input() gridStyleClass: string = '';
-    /**
-     * Function to optimize the dom operations by delegating to ngForTrackBy, default algorithm checks for object identity.
-     * @group Props
-     */
-    @Input() trackBy: Function = (index: number, item: any) => item;
-    /**
-     * Comma separated list of fields in the object graph to search against.
-     * @group Props
-     */
-    @Input() filterBy: string | undefined;
-    /**
-     * Locale to use in filtering. The default locale is the host environment's current locale.
-     * @group Props
-     */
-    @Input() filterLocale: string | undefined;
+    
     /**
      * Displays a loader to indicate data load is in progress.
      * @group Props
      */
     @Input({ transform: booleanAttribute }) loading: boolean | undefined;
-    /**
-     * The icon to show while indicating data load is in progress.
-     * @group Props
-     */
-    @Input() loadingIcon: string | undefined;
+    
     /**
      * Index of the first row to be displayed.
      * @group Props
@@ -302,11 +241,9 @@ export class DataView extends BaseComponent<DataViewPassThrough> implements Bloc
      * @group Props
      */
     @Input() value: any[] | undefined;
-    /**
-     * Defines the layout mode.
-     * @group Props
-     */
-    @Input() layout: 'list' | 'grid' = 'list';
+    
+    // [REFACTOR] 'layout' movido para config, mas mantido via getter
+
     /**
      * Callback to invoke when paging, sorting or filtering happens in lazy mode.
      * @param {DataViewLazyLoadEvent} event - Custom lazy load event.
@@ -331,15 +268,14 @@ export class DataView extends BaseComponent<DataViewPassThrough> implements Bloc
      * @group Emits
      */
     @Output() onChangeLayout: EventEmitter<DataViewLayoutChangeEvent> = new EventEmitter<DataViewLayoutChangeEvent>();
+    
     /**
      * Template for the list layout.
-     * @param {DataViewListTemplateContext} context - list template context.
      * @group Templates
      */
     @ContentChild('list') listTemplate: Nullable<TemplateRef<DataViewListTemplateContext>>;
     /**
      * Template for grid layout.
-     * @param {DataViewGridTemplateContext} context - grid template context.
      * @group Templates
      */
     @ContentChild('grid') gridTemplate: TemplateRef<DataViewGridTemplateContext>;
@@ -360,19 +296,16 @@ export class DataView extends BaseComponent<DataViewPassThrough> implements Bloc
     @ContentChild('footer') footerTemplate: TemplateRef<void>;
     /**
      * Template for the left side of paginator.
-     * @param {DataViewPaginatorLeftTemplateContext} context - paginator left template context.
      * @group Templates
      */
     @ContentChild('paginatorleft') paginatorleft: TemplateRef<DataViewPaginatorLeftTemplateContext>;
     /**
      * Template for the right side of paginator.
-     * @param {DataViewPaginatorRightTemplateContext} context - paginator right template context.
      * @group Templates
      */
     @ContentChild('paginatorright') paginatorright: TemplateRef<DataViewPaginatorRightTemplateContext>;
     /**
      * Template for items in paginator dropdown.
-     * @param {DataViewPaginatorDropdownItemTemplateContext} context - paginator dropdown item template context.
      * @group Templates
      */
     @ContentChild('paginatordropdownitem') paginatordropdownitem: TemplateRef<DataViewPaginatorDropdownItemTemplateContext>;
@@ -404,24 +337,22 @@ export class DataView extends BaseComponent<DataViewPassThrough> implements Bloc
 
     initialized: Nullable<boolean>;
 
-    _layout: 'list' | 'grid' = 'list';
-
     translationSubscription: Nullable<Subscription>;
 
     _componentStyle = inject(DataViewStyle);
 
     get emptyMessageLabel(): string {
-        return this.emptyMessage || this.config.getTranslation(TranslationKeys.EMPTY_MESSAGE);
+        return this.emptyMessage || this._primeConfig.getTranslation(TranslationKeys.EMPTY_MESSAGE);
     }
 
     filterService = inject(FilterService);
 
     onInit() {
-        if (this.lazy && this.lazyLoadOnInit) {
+        if (this.config.lazy && this.lazyLoadOnInit) {
             this.onLazyLoad.emit(this.createLazyLoadMetadata());
         }
 
-        this.translationSubscription = this.config.translationObserver.subscribe(() => {
+        this.translationSubscription = this._primeConfig.translationObserver.subscribe(() => {
             this.cd.markForCheck();
         });
         this.initialized = true;
@@ -430,35 +361,41 @@ export class DataView extends BaseComponent<DataViewPassThrough> implements Bloc
     onAfterViewInit() {}
 
     onChanges(simpleChanges: SimpleChanges) {
-        if (simpleChanges.layout && !simpleChanges.layout.firstChange) {
-            this.onChangeLayout.emit({ layout: simpleChanges.layout.currentValue });
+        // [REFACTOR] Verificar mudança de layout dentro do objeto config
+        if (simpleChanges.config) {
+            const prev = simpleChanges.config.previousValue;
+            const curr = simpleChanges.config.currentValue;
+            if (prev?.layout !== curr?.layout && !simpleChanges.config.firstChange) {
+                this.onChangeLayout.emit({ layout: curr.layout });
+            }
         }
+
         if (simpleChanges.value) {
             this._value = simpleChanges.value.currentValue;
             this.updateTotalRecords();
 
-            if (!this.lazy && this.hasFilter()) {
+            if (!this.config.lazy && this.hasFilter()) {
                 this.filter(this.filterValue as string);
             }
         }
 
         if (simpleChanges.sortField || simpleChanges.sortOrder) {
             //avoid triggering lazy load prior to lazy initialization at onInit
-            if (!this.lazy || this.initialized) {
+            if (!this.config.lazy || this.initialized) {
                 this.sort();
             }
         }
     }
 
     updateTotalRecords() {
-        this.totalRecords = this.lazy ? this.totalRecords : this._value ? this._value.length : 0;
+        this.totalRecords = this.config.lazy ? this.totalRecords : this._value ? this._value.length : 0;
     }
 
     paginate(event: DataViewPaginatorState) {
         this.first = event.first;
         this.rows = event.rows;
 
-        if (this.lazy) {
+        if (this.config.lazy) {
             this.onLazyLoad.emit(this.createLazyLoadMetadata());
         }
 
@@ -471,7 +408,7 @@ export class DataView extends BaseComponent<DataViewPassThrough> implements Bloc
     sort() {
         this.first = 0;
 
-        if (this.lazy) {
+        if (this.config.lazy) {
             this.onLazyLoad.emit(this.createLazyLoadMetadata());
         } else if (this.value) {
             this.value.sort((data1, data2) => {
@@ -521,14 +458,14 @@ export class DataView extends BaseComponent<DataViewPassThrough> implements Bloc
         this.filterValue = filter;
 
         if (this.value && this.value.length) {
-            let searchFields = (this.filterBy as string).split(',');
-            this.filteredValue = this.filterService.filter(this.value, searchFields, filter, filterMatchMode, this.filterLocale);
+            let searchFields = (this.config.filterBy as string).split(',');
+            this.filteredValue = this.filterService.filter(this.value, searchFields, filter, filterMatchMode, this.config.filterLocale);
 
             if (this.filteredValue.length === this.value.length) {
                 this.filteredValue = null;
             }
 
-            if (this.paginator) {
+            if (this.config.paginator) {
                 this.first = 0;
                 this.totalRecords = this.filteredValue ? this.filteredValue.length : this.value ? this.value.length : 0;
             }
