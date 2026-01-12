@@ -1,7 +1,6 @@
 import { CommonModule } from '@angular/common';
 import {
     AfterContentInit,
-    booleanAttribute,
     ChangeDetectionStrategy,
     Component,
     computed,
@@ -15,7 +14,6 @@ import {
     Input,
     NgModule,
     NgZone,
-    numberAttribute,
     OnDestroy,
     OnInit,
     Output,
@@ -24,10 +22,10 @@ import {
     ViewEncapsulation
 } from '@angular/core';
 import { findSingle, setAttribute, uuid } from '@primeuix/utils';
-import { Confirmation, ConfirmationService, ConfirmEventType, Footer, PrimeTemplate, SharedModule, TranslationKeys } from 'primeng/api';
+import { Confirmation, ConfirmationService, ConfirmEventType, Footer, PrimeNGConfig, PrimeTemplate, SharedModule, TranslationKeys } from 'primeng/api';
 import { BaseComponent, PARENT_INSTANCE } from 'primeng/basecomponent';
 import { Bind } from 'primeng/bind';
-import { Button } from 'primeng/button';
+import { Button, ButtonProps } from 'primeng/button';
 import { Dialog } from 'primeng/dialog';
 import { Nullable } from 'primeng/ts-helpers';
 import { ConfirmDialogHeadlessTemplateContext, ConfirmDialogMessageTemplateContext, ConfirmDialogPassThrough } from 'primeng/types/confirmdialog';
@@ -35,6 +33,43 @@ import { Subscription } from 'rxjs';
 import { ConfirmDialogStyle } from './style/confirmdialogstyle';
 
 const CONFIRMDIALOG_INSTANCE = new InjectionToken<ConfirmDialog>('CONFIRMDIALOG_INSTANCE');
+
+// [REFACTOR] Interface to group inputs and solve TMI
+export interface ConfirmDialogConfig {
+    header?: string;
+    icon?: string;
+    message?: string;
+    style?: { [klass: string]: any } | null;
+    styleClass?: string;
+    maskStyleClass?: string;
+    acceptIcon?: string;
+    acceptLabel?: string;
+    acceptAriaLabel?: string;
+    acceptVisible?: boolean;
+    rejectIcon?: string;
+    rejectLabel?: string;
+    rejectAriaLabel?: string;
+    rejectVisible?: boolean;
+    acceptButtonStyleClass?: string;
+    rejectButtonStyleClass?: string;
+    acceptButtonProps?: ButtonProps;
+    rejectButtonProps?: ButtonProps;
+    closeOnEscape?: boolean;
+    dismissableMask?: boolean;
+    blockScroll?: boolean;
+    rtl?: boolean;
+    closable?: boolean;
+    autoZIndex?: boolean;
+    baseZIndex?: number;
+    transitionOptions?: string;
+    focusTrap?: boolean;
+    defaultFocus?: 'accept' | 'reject' | 'close' | 'none';
+    breakpoints?: any;
+    modal?: boolean;
+    position?: 'center' | 'top' | 'bottom' | 'left' | 'right' | 'topleft' | 'topright' | 'bottomleft' | 'bottomright';
+    draggable?: boolean;
+    closeAriaLabel?: string;
+}
 
 /**
  * ConfirmDialog uses a Dialog UI that is integrated with the Confirmation API.
@@ -52,23 +87,23 @@ const CONFIRMDIALOG_INSTANCE = new InjectionToken<ConfirmDialog>('CONFIRMDIALOG_
             (visibleChange)="onVisibleChange($event)"
             role="alertdialog"
             [closable]="option('closable')"
-            [styleClass]="cn(cx('root'), styleClass)"
+            [styleClass]="cn(cx('root'), option('styleClass'))"
             [modal]="option('modal')"
             [header]="option('header')"
             [closeOnEscape]="option('closeOnEscape')"
             [blockScroll]="option('blockScroll')"
             [appendTo]="$appendTo()"
-            [position]="position"
-            [style]="style"
-            [dismissableMask]="dismissableMask"
-            [draggable]="draggable"
-            [baseZIndex]="baseZIndex"
-            [autoZIndex]="autoZIndex"
-            [maskStyleClass]="cn(cx('mask'), maskStyleClass)"
+            [position]="option('position')"
+            [style]="option('style')"
+            [dismissableMask]="option('dismissableMask')"
+            [draggable]="option('draggable')"
+            [baseZIndex]="option('baseZIndex')"
+            [autoZIndex]="option('autoZIndex')"
+            [maskStyleClass]="cn(cx('mask'), option('maskStyleClass'))"
             [unstyled]="unstyled()"
             (onHide)="onDialogHide()"
         >
-            @if (headlessTemplate || _headlessTemplate) {
+        @if (headlessTemplate || _headlessTemplate) {
                 <ng-template #headless>
                     <ng-container
                         *ngTemplateOutlet="
@@ -155,126 +190,38 @@ export class ConfirmDialog extends BaseComponent<ConfirmDialogPassThrough> imple
 
     bindDirectiveInstance = inject(Bind, { self: true });
 
+    _componentStyle = inject(ConfirmDialogStyle);
+    
+    // [REFACTOR] Explicit injection to avoid conflicts
+    _primeConfig = inject(PrimeNGConfig);
+
+    // [REFACTOR] New config input
+    @Input() config: ConfirmDialogConfig = {};
+
+    // [REFACTOR] Default configuration values
+    private _defaultConfig: ConfirmDialogConfig = {
+        acceptVisible: true,
+        rejectVisible: true,
+        closeOnEscape: true,
+        blockScroll: true,
+        closable: true,
+        autoZIndex: true,
+        baseZIndex: 0,
+        transitionOptions: '150ms cubic-bezier(0, 0, 0.2, 1)',
+        focusTrap: true,
+        defaultFocus: 'accept',
+        modal: true,
+        position: 'center',
+        draggable: true
+    };
+
     onAfterViewChecked(): void {
         this.bindDirectiveInstance.setAttrs(this.ptm('host'));
     }
 
-    /**
-     * Title text of the dialog.
-     * @group Props
-     */
-    @Input() header: string | undefined;
-    /**
-     * Icon to display next to message.
-     * @group Props
-     */
-    @Input() icon: string | undefined;
-    /**
-     * Message of the confirmation.
-     * @group Props
-     */
-    @Input() message: string | undefined;
-    /**
-     * Inline style of the element.
-     * @group Props
-     */
-    @Input() get style(): { [klass: string]: any } | null | undefined {
-        return this._style;
-    }
-    set style(value: { [klass: string]: any } | null | undefined) {
-        this._style = value;
-        this.cd.markForCheck();
-    }
-    /**
-     * Class of the element.
-     * @group Props
-     */
-    @Input() styleClass: string | undefined;
-    /**
-     * Specify the CSS class(es) for styling the mask element
-     * @group Props
-     */
-    @Input() maskStyleClass: string | undefined;
-    /**
-     * Icon of the accept button.
-     * @group Props
-     */
-    @Input() acceptIcon: string | undefined;
-    /**
-     * Label of the accept button.
-     * @group Props
-     */
-    @Input() acceptLabel: string | undefined;
-    /**
-     * Defines a string that labels the close button for accessibility.
-     * @group Props
-     */
-    @Input() closeAriaLabel: string | undefined;
-    /**
-     * Defines a string that labels the accept button for accessibility.
-     * @group Props
-     */
-    @Input() acceptAriaLabel: string | undefined;
-    /**
-     * Visibility of the accept button.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) acceptVisible: boolean = true;
-    /**
-     * Icon of the reject button.
-     * @group Props
-     */
-    @Input() rejectIcon: string | undefined;
-    /**
-     * Label of the reject button.
-     * @group Props
-     */
-    @Input() rejectLabel: string | undefined;
-    /**
-     * Defines a string that labels the reject button for accessibility.
-     * @group Props
-     */
-    @Input() rejectAriaLabel: string | undefined;
-    /**
-     * Visibility of the reject button.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) rejectVisible: boolean = true;
-    /**
-     * Style class of the accept button.
-     * @group Props
-     */
-    @Input() acceptButtonStyleClass: string | undefined;
-    /**
-     * Style class of the reject button.
-     * @group Props
-     */
-    @Input() rejectButtonStyleClass: string | undefined;
-    /**
-     * Specifies if pressing escape key should hide the dialog.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) closeOnEscape: boolean = true;
-    /**
-     * Specifies if clicking the modal background should hide the dialog.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) dismissableMask: boolean | undefined;
-    /**
-     * Determines whether scrolling behavior should be blocked within the component.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) blockScroll: boolean = true;
-    /**
-     * When enabled dialog is displayed in RTL direction.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) rtl: boolean = false;
-    /**
-     * Adds a close icon to the header to hide the dialog.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) closable: boolean = true;
+    // [REFACTOR] Removed ~30 individual @Inputs.
+    // They are now accessed via option() or this.config.*
+
     /**
      * Target element to attach the overlay, valid values are "body" or a local ng-template variable of another element (note: use binding with brackets for template variables, e.g. [appendTo]="mydiv" for a div element having #mydiv as variable name).
      * @defaultValue 'body'
@@ -286,41 +233,7 @@ export class ConfirmDialog extends BaseComponent<ConfirmDialogPassThrough> imple
      * @group Props
      */
     @Input() key: string | undefined;
-    /**
-     * Whether to automatically manage layering.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) autoZIndex: boolean = true;
-    /**
-     * Base zIndex value to use in layering.
-     * @group Props
-     */
-    @Input({ transform: numberAttribute }) baseZIndex: number = 0;
-    /**
-     * Transition options of the animation.
-     * @group Props
-     */
-    @Input() transitionOptions: string = '150ms cubic-bezier(0, 0, 0.2, 1)';
-    /**
-     * When enabled, can only focus on elements inside the confirm dialog.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) focusTrap: boolean = true;
-    /**
-     * Element to receive the focus when the dialog gets visible.
-     * @group Props
-     */
-    @Input() defaultFocus: 'accept' | 'reject' | 'close' | 'none' = 'accept';
-    /**
-     * Object literal to define widths per screen size.
-     * @group Props
-     */
-    @Input() breakpoints: any;
-    /**
-     * Defines if background should be blocked when dialog is displayed.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) modal: boolean = true;
+    
     /**
      * Current visible state as a boolean.
      * @group Props
@@ -338,16 +251,7 @@ export class ConfirmDialog extends BaseComponent<ConfirmDialogPassThrough> imple
 
         this.cd.markForCheck();
     }
-    /**
-     *  Allows getting the position of the component.
-     * @group Props
-     */
-    @Input() position: 'center' | 'top' | 'bottom' | 'left' | 'right' | 'topleft' | 'topright' | 'bottomleft' | 'bottomright' = 'center';
-    /**
-     * Enables dragging to change the position using header.
-     * @group Props
-     */
-    @Input({ transform: booleanAttribute }) draggable: boolean = true;
+    
     /**
      * Callback to invoke when dialog is hidden.
      * @param {ConfirmEventType} enum - Custom confirm event.
@@ -357,93 +261,45 @@ export class ConfirmDialog extends BaseComponent<ConfirmDialogPassThrough> imple
 
     @ContentChild(Footer) footer: Nullable<TemplateRef<any>>;
 
-    _componentStyle = inject(ConfirmDialogStyle);
-
-    /**
-     * Custom header template.
-     * @group Templates
-     */
     @ContentChild('header', { descendants: false }) headerTemplate: Nullable<TemplateRef<void>>;
-
-    /**
-     * Custom footer template.
-     * @group Templates
-     */
     @ContentChild('footer', { descendants: false }) footerTemplate: Nullable<TemplateRef<void>>;
-
-    /**
-     * Custom reject icon template.
-     * @group Templates
-     */
     @ContentChild('rejecticon', { descendants: false }) rejectIconTemplate: Nullable<TemplateRef<void>>;
-
-    /**
-     * Custom accept icon template.
-     * @group Templates
-     */
     @ContentChild('accepticon', { descendants: false }) acceptIconTemplate: Nullable<TemplateRef<void>>;
-
-    /**
-     * Custom message template.
-     * @group Templates
-     */
     @ContentChild('message', { descendants: false }) messageTemplate: Nullable<TemplateRef<ConfirmDialogMessageTemplateContext>>;
-
-    /**
-     * Custom icon template.
-     * @group Templates
-     */
     @ContentChild('icon', { descendants: false }) iconTemplate: Nullable<TemplateRef<void>>;
-
-    /**
-     * Custom headless template.
-     * @group Templates
-     */
     @ContentChild('headless', { descendants: false }) headlessTemplate: Nullable<TemplateRef<ConfirmDialogHeadlessTemplateContext>>;
 
     @ContentChildren(PrimeTemplate) templates: QueryList<PrimeTemplate> | undefined;
 
-    $appendTo = computed(() => this.appendTo() || this.config.overlayAppendTo());
+    $appendTo = computed(() => this.appendTo() || this._primeConfig.overlayAppendTo());
 
     _headerTemplate: TemplateRef<void> | undefined;
-
     _footerTemplate: TemplateRef<void> | undefined;
-
     _rejectIconTemplate: TemplateRef<void> | undefined;
-
     _acceptIconTemplate: TemplateRef<void> | undefined;
-
     _messageTemplate: TemplateRef<ConfirmDialogMessageTemplateContext> | undefined;
-
     _iconTemplate: TemplateRef<void> | undefined;
-
     _headlessTemplate: TemplateRef<ConfirmDialogHeadlessTemplateContext> | undefined;
 
     confirmation: Nullable<Confirmation>;
-
     _visible: boolean | undefined;
-
     _style: { [klass: string]: any } | null | undefined;
-
     maskVisible: boolean | undefined;
-
     dialog: Nullable<Dialog>;
-
     wrapper: Nullable<HTMLElement>;
-
     contentContainer: Nullable<HTMLDivElement>;
-
     subscription: Subscription;
-
     preWidth: number | undefined;
-
     styleElement: any;
-
     id = uuid('pn_id_');
-
     ariaLabelledBy: string | null = this.getAriaLabelledBy();
-
     translationSubscription: Subscription | undefined;
+
+    // [REFACTOR] Getters to access properties that might be needed in template or logic 
+    // referencing 'this' where 'this' might be dynamically augmented by confirmation object.
+    get acceptIcon() { return this.option('acceptIcon'); }
+    get rejectIcon() { return this.option('rejectIcon'); }
+    get breakpoints() { return this.option('breakpoints'); }
 
     constructor(
         private confirmationService: ConfirmationService,
@@ -484,7 +340,7 @@ export class ConfirmDialog extends BaseComponent<ConfirmDialogPassThrough> imple
             this.createStyle();
         }
 
-        this.translationSubscription = this.config.translationObserver.subscribe(() => {
+        this.translationSubscription = this._primeConfig.translationObserver.subscribe(() => {
             if (this.visible) {
                 this.cd.markForCheck();
             }
@@ -526,14 +382,31 @@ export class ConfirmDialog extends BaseComponent<ConfirmDialogPassThrough> imple
     }
 
     getAriaLabelledBy() {
-        return this.header !== null ? uuid('pn_id_') + '_header' : null;
+        return this.option('header') !== null ? uuid('pn_id_') + '_header' : null;
     }
 
+    // [REFACTOR] Updated option method to check dynamic confirmation properties first, then config, then defaults
     option(name: string, k?: string) {
         const source: { [key: string]: any } = this;
+        
+        // 1. Check for dynamic property on component instance (set by ConfirmationService)
         if (source.hasOwnProperty(name)) {
             const value = k ? source[k] : source[name];
             return typeof value === 'function' ? value() : value;
+        }
+
+        // 2. Check for property in config input
+        if (this.config && this.config.hasOwnProperty(name)) {
+             const value = k ? this.config[k] : this.config[name];
+             if (value !== undefined) {
+                 return value;
+             }
+        }
+
+        // 3. Fallback to default config
+        if (this._defaultConfig.hasOwnProperty(name)) {
+             const value = k ? this._defaultConfig[k] : this._defaultConfig[name];
+             return value;
         }
 
         return undefined;
@@ -572,7 +445,7 @@ export class ConfirmDialog extends BaseComponent<ConfirmDialogPassThrough> imple
         if (!this.styleElement) {
             this.styleElement = this.document.createElement('style');
             this.styleElement.type = 'text/css';
-            setAttribute(this.styleElement, 'nonce', this.config?.csp()?.nonce);
+            setAttribute(this.styleElement, 'nonce', this._primeConfig?.csp()?.nonce);
             this.document.head.appendChild(this.styleElement);
             let innerHTML = '';
             for (let breakpoint in this.breakpoints) {
@@ -586,7 +459,7 @@ export class ConfirmDialog extends BaseComponent<ConfirmDialogPassThrough> imple
             }
 
             this.styleElement.innerHTML = innerHTML;
-            setAttribute(this.styleElement, 'nonce', this.config?.csp()?.nonce);
+            setAttribute(this.styleElement, 'nonce', this._primeConfig?.csp()?.nonce);
         }
     }
 
@@ -659,11 +532,11 @@ export class ConfirmDialog extends BaseComponent<ConfirmDialogPassThrough> imple
     }
 
     get acceptButtonLabel(): string {
-        return this.option('acceptLabel') || this.getAcceptButtonProps()?.label || this.config.getTranslation(TranslationKeys.ACCEPT);
+        return this.option('acceptLabel') || this.getAcceptButtonProps()?.label || this._primeConfig.getTranslation(TranslationKeys.ACCEPT);
     }
 
     get rejectButtonLabel(): string {
-        return this.option('rejectLabel') || this.getRejectButtonProps()?.label || this.config.getTranslation(TranslationKeys.REJECT);
+        return this.option('rejectLabel') || this.getRejectButtonProps()?.label || this._primeConfig.getTranslation(TranslationKeys.REJECT);
     }
 
     getAcceptButtonProps() {
